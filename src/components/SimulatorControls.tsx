@@ -181,19 +181,19 @@ export function SimulatorControls() {
                 <SelectValue placeholder="Select sector" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="financial-services">Financial Services (banks, NBFCs, insurance, asset management)</SelectItem>
-                <SelectItem value="it">Information Technology (IT Services & Software)</SelectItem>
-                <SelectItem value="healthcare">Healthcare (pharma, hospitals, biotech)</SelectItem>
-                <SelectItem value="consumer-discretionary">Consumer Discretionary (auto, retail, apparel, leisure, etc.)</SelectItem>
-                <SelectItem value="consumer-staples">Consumer Staples / FMCG (food, beverages, household, personal products)</SelectItem>
-                <SelectItem value="industrials">Industrials (manufacturing, logistics, defense, infrastructure)</SelectItem>
-                <SelectItem value="materials">Materials (construction materials, paper, packaging)</SelectItem>
-                <SelectItem value="chemicals">Chemicals (specialty chemicals, agrochemicals)</SelectItem>
-                <SelectItem value="metals-mining">Metals & Mining (steel, aluminum, copper, coal, etc.)</SelectItem>
-                <SelectItem value="energy">Energy (oil, gas, renewable energy)</SelectItem>
-                <SelectItem value="utilities">Utilities (power generation, water, gas distribution)</SelectItem>
-                <SelectItem value="real-estate">Real Estate (REITs, developers, property management)</SelectItem>
-                <SelectItem value="telecom">Telecom / Communication Services (telecom operators, media, internet)</SelectItem>
+           <SelectItem value="financial-services">Financial Services</SelectItem>
+           <SelectItem value="it">Information Technology</SelectItem>
+           <SelectItem value="healthcare">Healthcare</SelectItem>
+           <SelectItem value="consumer-discretionary">Consumer Discretionary</SelectItem>
+           <SelectItem value="consumer-staples">Consumer Staples (FMCG)</SelectItem>
+           <SelectItem value="industrials">Industrials</SelectItem>
+           <SelectItem value="materials">Materials</SelectItem>
+           <SelectItem value="chemicals">Chemicals</SelectItem>
+           <SelectItem value="metals-mining">Metals & Mining</SelectItem>
+           <SelectItem value="energy">Energy</SelectItem>
+           <SelectItem value="utilities">Utilities</SelectItem>
+           <SelectItem value="real-estate">Real Estate</SelectItem>
+           <SelectItem value="telecom">Telecom / Communication Services</SelectItem>
               </SelectContent>
             </Select>
             {companyProfile.sector && <ImpactInfo value={companyProfile.sector} />}
