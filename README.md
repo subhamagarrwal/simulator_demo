@@ -1,6 +1,5 @@
 
   # Financial Trading Platform
-Hello.
   This is a code bundle for Financial Trading Platform. The original project is available at https://www.figma.com/design/YKqqRQFPy1xOv4tdcN0op9/Financial-Trading-Platform.
 
   ## Running the code
