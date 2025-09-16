@@ -5,6 +5,8 @@ import { Label } from "./ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/tooltip";
 import { Badge } from "./ui/badge";
+import { CompanyProfileDialog } from "./CompanyProfileDialog";
+import { StockOverview } from "./StockOverview";
 import { 
   Building2, 
   TrendingUp, 
@@ -22,7 +24,7 @@ import {
   CheckCircle,
   Play
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const tooltips = {
   // Company Profile
@@ -86,10 +88,8 @@ const impactExplanations = {
 };
 
 export function SimulatorControls() {
-  const [companyProfile, setCompanyProfile] = useState({
-    size: "",
-    sector: ""
-  });
+  const [showProfileDialog, setShowProfileDialog] = useState(true);
+  const [companyProfile, setCompanyProfile] = useState<{size: string; sector: string} | null>(null);
   
   const [marketEnvironment, setMarketEnvironment] = useState({
     sentiment: "neutral",
@@ -101,6 +101,11 @@ export function SimulatorControls() {
   
   const [activeEvent, setActiveEvent] = useState<string | null>(null);
   const [selectedEventOption, setSelectedEventOption] = useState<string | null>(null);
+
+  const handleProfileSet = (profile: {size: string; sector: string}) => {
+    setCompanyProfile(profile);
+    setShowProfileDialog(false);
+  };
 
   const InfoTooltip = ({ content }: { content: string }) => (
     <TooltipProvider>
@@ -137,80 +142,19 @@ export function SimulatorControls() {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Company Profile Setup */}
-      <Card className="border-primary/20">
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center space-x-2 text-base">
-            <Building2 className="h-5 w-5 text-primary" />
-            <span>Company Profile</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label className="flex items-center text-sm">
-              Company Size
-              <InfoTooltip content={tooltips.companySize} />
-            </Label>
-            <Select 
-              value={companyProfile.size} 
-              onValueChange={(value) => setCompanyProfile(prev => ({ ...prev, size: value }))}
-            >
-              <SelectTrigger className="bg-card">
-                <SelectValue placeholder="Select company size" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="small-cap">Small-Cap</SelectItem>
-                <SelectItem value="mid-cap">Mid-Cap</SelectItem>
-                <SelectItem value="large-cap">Large-Cap</SelectItem>
-              </SelectContent>
-            </Select>
-            {companyProfile.size && <ImpactInfo value={companyProfile.size} />}
-          </div>
-          
-          <div className="space-y-2">
-            <Label className="flex items-center text-sm">
-              Sector
-              <InfoTooltip content={tooltips.sector} />
-            </Label>
-            <Select 
-              value={companyProfile.sector} 
-              onValueChange={(value) => setCompanyProfile(prev => ({ ...prev, sector: value }))}
-            >
-              <SelectTrigger className="bg-card">
-                <SelectValue placeholder="Select sector" />
-              </SelectTrigger>
-              <SelectContent>
-           <SelectItem value="financial-services">Financial Services</SelectItem>
-           <SelectItem value="it">Information Technology</SelectItem>
-           <SelectItem value="healthcare">Healthcare</SelectItem>
-           <SelectItem value="consumer-discretionary">Consumer Discretionary</SelectItem>
-           <SelectItem value="consumer-staples">Consumer Staples (FMCG)</SelectItem>
-           <SelectItem value="industrials">Industrials</SelectItem>
-           <SelectItem value="materials">Materials</SelectItem>
-           <SelectItem value="chemicals">Chemicals</SelectItem>
-           <SelectItem value="metals-mining">Metals & Mining</SelectItem>
-           <SelectItem value="energy">Energy</SelectItem>
-           <SelectItem value="utilities">Utilities</SelectItem>
-           <SelectItem value="real-estate">Real Estate</SelectItem>
-           <SelectItem value="telecom">Telecom / Communication Services</SelectItem>
-              </SelectContent>
-            </Select>
-            {companyProfile.sector && <ImpactInfo value={companyProfile.sector} />}
-          </div>
-          
-          {companyProfile.size && companyProfile.sector && (
-            <div className="pt-2">
-              <Button className="w-full bg-primary hover:bg-primary/90" size="sm">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Profile Ready - Initialize Company
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+    <>
+      <CompanyProfileDialog 
+        open={showProfileDialog} 
+        onProfileSet={handleProfileSet}
+      />
+      
+      <div className="space-y-6">
+        {/* Stock Overview - Shows after profile is set */}
+        {companyProfile && (
+          <StockOverview profile={companyProfile} />
+        )}
 
-      {/* Daily Market Environment */}
+        {/* Daily Market Environment */}
       <Card className="border-blue-500/20">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center space-x-2 text-base">
@@ -578,6 +522,7 @@ export function SimulatorControls() {
         <Play className="h-4 w-4 mr-2" />
         🚀 Apply Changes & Run Simulation Day
       </Button>
-    </div>
+      </div>
+    </>
   );
 }
