@@ -1,6 +1,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 import { Badge } from "./ui/badge";
 import { Building2, TrendingUp, Activity } from "lucide-react";
+import { useSimulation } from "../contexts/SimulationContext";
 
 interface CompanyProfile {
   size: string;
@@ -9,17 +10,14 @@ interface CompanyProfile {
 
 interface StockOverviewProps {
   profile: CompanyProfile;
-  currentPrice?: number;
-  priceChange?: number;
-  priceChangePercent?: number;
 }
 
-export function StockOverview({ 
-  profile, 
-  currentPrice = 1847.50, 
-  priceChange = 23.45, 
-  priceChangePercent = 1.29 
-}: StockOverviewProps) {
+export function StockOverview({ profile }: StockOverviewProps) {
+  const simulation = useSimulation();
+  
+  const currentPrice = simulation.currentPrice;
+  const priceChange = simulation.priceChange.absolute;
+  const priceChangePercent = simulation.priceChange.percentage;
   
   const getSizeLabel = (size: string) => {
     switch (size) {

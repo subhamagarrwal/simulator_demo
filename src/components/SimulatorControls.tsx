@@ -7,6 +7,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 import { Badge } from "./ui/badge";
 import { CompanyProfileDialog } from "./CompanyProfileDialog";
 import { StockOverview } from "./StockOverview";
+import { useSimulation } from "../contexts/SimulationContext";
 import { 
   Building2, 
   TrendingUp, 
@@ -88,6 +89,7 @@ const impactExplanations = {
 };
 
 export function SimulatorControls() {
+  const simulation = useSimulation();
   const [showProfileDialog, setShowProfileDialog] = useState(true);
   const [companyProfile, setCompanyProfile] = useState<{size: string; sector: string} | null>(null);
   
@@ -105,7 +107,15 @@ export function SimulatorControls() {
   const handleProfileSet = (profile: {size: string; sector: string}) => {
     setCompanyProfile(profile);
     setShowProfileDialog(false);
+    simulation.initializeSimulation(profile);
   };
+
+  // Update market conditions in simulation when they change
+  useEffect(() => {
+    if (simulation.engine) {
+      simulation.updateMarketConditions(marketEnvironment);
+    }
+  }, [marketEnvironment, simulation.engine]);
 
   const InfoTooltip = ({ content }: { content: string }) => (
     <TooltipProvider>
@@ -172,7 +182,7 @@ export function SimulatorControls() {
             </Label>
             <Select 
               value={marketEnvironment.sentiment} 
-              onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, sentiment: value }))}
+              onValueChange={(value: string) => setMarketEnvironment(prev => ({ ...prev, sentiment: value }))}
             >
               <SelectTrigger className="bg-card">
                 <SelectValue />
@@ -196,7 +206,7 @@ export function SimulatorControls() {
             </Label>
             <Select 
               value={marketEnvironment.flows} 
-              onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, flows: value }))}
+              onValueChange={(value: string) => setMarketEnvironment(prev => ({ ...prev, flows: value }))}
             >
               <SelectTrigger className="bg-card">
                 <SelectValue />
@@ -220,7 +230,7 @@ export function SimulatorControls() {
             </Label>
             <Select 
               value={marketEnvironment.globalCues} 
-              onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, globalCues: value }))}
+              onValueChange={(value: string) => setMarketEnvironment(prev => ({ ...prev, globalCues: value }))}
             >
               <SelectTrigger className="bg-card">
                 <SelectValue />
@@ -244,7 +254,7 @@ export function SimulatorControls() {
             </Label>
             <Select 
               value={marketEnvironment.exchangeRate} 
-              onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, exchangeRate: value }))}
+              onValueChange={(value: string) => setMarketEnvironment(prev => ({ ...prev, exchangeRate: value }))}
             >
               <SelectTrigger className="bg-card">
                 <SelectValue />
@@ -266,7 +276,7 @@ export function SimulatorControls() {
             </Label>
             <Select 
               value={marketEnvironment.crudeOil} 
-              onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, crudeOil: value }))}
+              onValueChange={(value: string) => setMarketEnvironment(prev => ({ ...prev, crudeOil: value }))}
             >
               <SelectTrigger className="bg-card">
                 <SelectValue />
@@ -518,10 +528,49 @@ export function SimulatorControls() {
       </Card>
 
       {/* Apply Changes Button */}
-      <Button className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white" size="lg">
+      <Button 
+        className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white" 
+        size="lg"
+        onClick={() => {
+          if (selectedEventOption && activeEvent) {
+            simulation.triggerEvent({
+              type: activeEvent as any,
+              subtype: selectedEventOption,
+              impact: 1.0
+            });
+            setSelectedEventOption(null);
+            setActiveEvent(null);
+          } else {
+            simulation.simulateNextDay();
+          }
+        }}
+      >
         <Play className="h-4 w-4 mr-2" />
-        🚀 Apply Changes & Run Simulation Day
+        {selectedEventOption && activeEvent 
+          ? `🎯 Trigger ${selectedEventOption.replace('-', ' ').toUpperCase()} Event`
+          : '🚀 Apply Changes & Run Simulation Day'
+        }
       </Button>
+      
+      {/* Simulation Control Buttons */}
+      {companyProfile && (
+        <div className="grid grid-cols-2 gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => simulation.isRunning ? simulation.stopSimulation() : simulation.startSimulation()}
+            className="w-full"
+          >
+            {simulation.isRunning ? 'Pause' : 'Auto Run'} (Day {simulation.currentDay})
+          </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => simulation.resetSimulation()}
+            className="w-full"
+          >
+            Reset Simulation
+          </Button>
+        </div>
+      )}
       </div>
     </>
   );

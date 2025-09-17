@@ -1,40 +1,12 @@
 import { ResponsiveContainer, LineChart, XAxis, YAxis, CartesianGrid, ReferenceLine } from "recharts";
 import { useState, useMemo } from "react";
-
-// Generate realistic EUR/USD candlestick data
-const generateCandlestickData = () => {
-  const data = [];
-  let basePrice = 1.0850;
-  
-  for (let i = 0; i < 50; i++) {
-    const volatility = 0.002;
-    const change = (Math.random() - 0.5) * volatility;
-    const open = basePrice;
-    const close = open + change;
-    const high = Math.max(open, close) + Math.random() * volatility * 0.5;
-    const low = Math.min(open, close) - Math.random() * volatility * 0.5;
-    
-    data.push({
-      index: i,
-      time: `Day ${i + 1}`,
-      open: Number(open.toFixed(5)),
-      high: Number(high.toFixed(5)),
-      low: Number(low.toFixed(5)),
-      close: Number(close.toFixed(5)),
-      volume: Math.floor(Math.random() * 1000000) + 500000,
-      isGreen: close > open
-    });
-    
-    basePrice = close + (Math.random() - 0.5) * volatility * 0.3;
-  }
-  
-  return data;
-};
+import { useSimulation } from "../contexts/SimulationContext";
 
 const CandlestickItem = ({ x, y, width, height, payload, candleWidth = 8 }: any) => {
   if (!payload) return null;
   
-  const { open, high, low, close, isGreen } = payload;
+  const { open, high, low, close } = payload;
+  const isGreen = close > open;
   
   // Calculate positions
   const centerX = x + width / 2;
@@ -198,7 +170,7 @@ const CustomCandlestickChart = ({ data, width, height }: any) => {
         })}
         
         {/* Time Labels */}
-        {data.filter((_, i) => i % 10 === 0).map((candle: any, index: number) => {
+        {data.filter((_: any, i: number) => i % 10 === 0).map((candle: any, index: number) => {
           const actualIndex = data.indexOf(candle);
           const x = 50 + actualIndex * candleSpacing + candleSpacing / 2;
           return (
@@ -267,30 +239,69 @@ const CustomCandlestickChart = ({ data, width, height }: any) => {
 };
 
 export function CandlestickChart() {
-  const candleData = useMemo(() => generateCandlestickData(), []);
-  const currentPrice = candleData[candleData.length - 1]?.close || 1.0847;
-  const previousPrice = candleData[candleData.length - 2]?.close || 1.0824;
-  const change = currentPrice - previousPrice;
-  const changePercent = ((change / previousPrice) * 100);
+  const simulation = useSimulation();
+  
+  // Transform simulation data for chart display
+  const candleData = useMemo(() => {
+    return simulation.historicalData.map((candle, index) => ({
+      index,
+      time: candle.time,
+      open: candle.open,
+      high: candle.high,
+      low: candle.low,
+      close: candle.close,
+      volume: candle.volume,
+      isGreen: candle.close > candle.open
+    }));
+  }, [simulation.historicalData]);
+
+  const currentPrice = simulation.currentPrice;
+  const priceChange = simulation.priceChange;
+  const simulationDuration = simulation.simulationDuration;
+  
+  // Get company name for display
+  const getCompanySymbol = (sector: string) => {
+    const symbols: Record<string, string> = {
+      "financial-services": "ABCFIN",
+      "it": "TECHCORP", 
+      "healthcare": "MEDLIFE",
+      "consumer-discretionary": "RETAILMAX",
+      "consumer-staples": "FASTCON",
+      "industrials": "INDTECH",
+      "materials": "BUILDMAT",
+      "chemicals": "CHEMTECH",
+      "metals-mining": "STEELCORP",
+      "energy": "POWERGEN",
+      "utilities": "UTILMAX",
+      "real-estate": "PROPDEV",
+      "telecom": "CONNECTEL"
+    };
+    return symbols[sector] || "COMPANY";
+  };
+  
+  const companySymbol = simulation.engine?.getState().companyProfile.sector ? 
+    getCompanySymbol(simulation.engine.getState().companyProfile.sector) : "STOCK";
   
   return (
     <div className="h-full w-full">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h2 className="text-2xl font-semibold">EUR/USD</h2>
+          <h2 className="text-2xl font-semibold">{companySymbol}</h2>
           <div className="flex items-center space-x-4 mt-1">
-            <span className={`text-xl ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {currentPrice.toFixed(4)}
+            <span className={`text-xl ${priceChange.absolute >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              ₹{currentPrice.toFixed(2)}
             </span>
-            <span className={`text-sm ${change >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-              {change >= 0 ? '+' : ''}{change.toFixed(4)} ({changePercent >= 0 ? '+' : ''}{changePercent.toFixed(2)}%)
+            <span className={`text-sm ${priceChange.absolute >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+              {priceChange.absolute >= 0 ? '+' : ''}₹{priceChange.absolute.toFixed(2)} ({priceChange.percentage >= 0 ? '+' : ''}{priceChange.percentage.toFixed(2)}%)
             </span>
           </div>
         </div>
         <div className="flex flex-col items-end">
           <div className="text-sm text-muted-foreground">Stock Simulation Running For</div>
-          <div className="text-lg font-medium text-primary">47 Days 12h 23m</div>
-          <div className="text-xs text-muted-foreground">Started Jan 15, 2025</div>
+          <div className="text-lg font-medium text-primary">
+            {simulationDuration.days} Days {simulationDuration.hours}h {simulationDuration.minutes}m
+          </div>
+          <div className="text-xs text-muted-foreground">Started {simulationDuration.startDate}</div>
         </div>
       </div>
       
