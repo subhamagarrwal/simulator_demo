@@ -28,17 +28,33 @@ interface SimulationProviderProps {
 
 export function SimulationProvider({ children }: SimulationProviderProps) {
   const [engine, setEngine] = useState<PriceSimulationEngine | null>(null);
-  const [currentPrice, setCurrentPrice] = useState(1847.50);
+  const [currentPrice, setCurrentPrice] = useState(154.80); // default to mid-cap price
   const [priceChange, setPriceChange] = useState({ absolute: 0, percentage: 0 });
   const [historicalData, setHistoricalData] = useState<CandlestickData[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [currentDay, setCurrentDay] = useState(1);
   const [simulationDuration, setSimulationDuration] = useState({ days: 0, hours: 0, minutes: 0, startDate: '' });
   
+  // Function to get base price for company size
+  const getBasePriceForSize = (size: string): number => {
+    switch (size) {
+      case 'small-cap':
+        return 124.36;
+      case 'mid-cap':
+        return 154.80;
+      case 'large-cap':
+        return 179.52;
+      default:
+        return 154.80;
+    }
+  };
+  
   const initializeSimulation = (profile: { size: string; sector: string }) => {
+    const basePrice = getBasePriceForSize(profile.size);
+    
     const newEngine = new PriceSimulationEngine({
       companyProfile: profile,
-      basePrice: 1847.50
+      basePrice: basePrice
     });
     
     setEngine(newEngine);

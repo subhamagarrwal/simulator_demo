@@ -9,7 +9,7 @@ import { SimulationProvider } from "./contexts/SimulationContext";
 export default function App() {
   return (
     <SimulationProvider>
-      <div className="min-h-screen bg-background text-foreground dark">
+      <div className="h-screen bg-background text-foreground dark overflow-hidden">
         <Header />
         
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 p-6 h-[calc(100vh-80px)]">
@@ -19,7 +19,7 @@ export default function App() {
           </div>
           
           {/* Main Chart Area */}
-          <div className="lg:col-span-2 bg-card rounded-lg border border-border p-6">
+          <div className="lg:col-span-2 bg-card rounded-lg border border-border p-6 overflow-hidden">
             <CandlestickChart />
           </div>
           

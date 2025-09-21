@@ -83,9 +83,9 @@ export function CompanyProfileDialog({ open, onProfileSet }: CompanyProfileDialo
                   <SelectValue placeholder="Select company size" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="large-cap">Large Cap (₹10,000Cr+)</SelectItem>
-                  <SelectItem value="mid-cap">Mid Cap (₹2,000Cr - ₹10,000Cr)</SelectItem>
-                  <SelectItem value="small-cap">Small Cap (₹500Cr - ₹2,000Cr)</SelectItem>
+                  <SelectItem value="large-cap">Large Cap (Starting Price: ₹179.52)</SelectItem>
+                  <SelectItem value="mid-cap">Medium Cap  (Starting Price: ₹154.80)</SelectItem>
+                  <SelectItem value="small-cap">Small Cap (Starting Price: ₹124.36)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

@@ -31,6 +31,7 @@ export interface SimulationState {
   companyProfile: {
     size: string;
     sector: string;
+    companySizeValue: number; // Random value between 10-98
   };
   marketConditions: MarketConditions;
   activeEvents: CompanyEvent[];
@@ -41,13 +42,40 @@ export class PriceSimulationEngine {
   private state: SimulationState;
   private sectorModel: SectorImpactModel;
   
+  // Generate a random company size value between 10-98
+  private generateRandomCompanySize(): number {
+    return Math.floor(Math.random() * (98 - 10 + 1)) + 10;
+  }
+  
+  // Base prices for different company sizes
+  private getBasePriceForSize(size: string): number {
+    switch (size) {
+      case 'small-cap':
+        return 124.36;
+      case 'mid-cap':
+        return 154.80;
+      case 'large-cap':
+        return 179.52;
+      default:
+        return 154.80; // default to mid-cap
+    }
+  }
+  
   constructor(initialState: Partial<SimulationState>) {
+    const companySize = initialState.companyProfile?.size || 'mid-cap';
+    const basePrice = initialState.basePrice || this.getBasePriceForSize(companySize);
+    const randomSizeValue = this.generateRandomCompanySize();
+    
     this.state = {
-      currentPrice: 1847.50,
+      currentPrice: basePrice,
       currentDay: 1,
       startTime: new Date(),
       historicalData: [],
-      companyProfile: { size: 'mid-cap', sector: 'it' },
+      companyProfile: { 
+        size: companySize, 
+        sector: 'it',
+        companySizeValue: randomSizeValue
+      },
       marketConditions: {
         sentiment: 'neutral',
         flows: 'neutral',
@@ -56,7 +84,7 @@ export class PriceSimulationEngine {
         crudeOil: 'stable'
       },
       activeEvents: [],
-      basePrice: 1847.50,
+      basePrice: basePrice,
       ...initialState
     };
     
@@ -313,6 +341,10 @@ export class PriceSimulationEngine {
     return this.state.currentPrice;
   }
   
+  public getCompanySizeValue(): number {
+    return this.state.companyProfile.companySizeValue;
+  }
+  
   public getPriceChange(): { absolute: number; percentage: number } {
     const previousClose = this.state.historicalData[this.state.historicalData.length - 1]?.close || this.state.basePrice;
     const absolute = this.state.currentPrice - previousClose;
@@ -344,7 +376,10 @@ export class PriceSimulationEngine {
 
   public reset(newProfile?: { size: string; sector: string }) {
     if (newProfile) {
-      this.state.companyProfile = newProfile;
+      this.state.companyProfile = {
+        ...newProfile,
+        companySizeValue: this.generateRandomCompanySize()
+      };
       this.sectorModel = sectorModels[newProfile.sector] || getDefaultSectorModel();
     }
     
