@@ -193,7 +193,6 @@ export function SimulatorControls() {
     global_market_cues: 0, // Range: -0.7021572639830562 to 0.6776104425671782
     exchangeRate: "stable",
     inr_usd_delta: 0, // Range: -0.0123434874854614 to 0.0111704830210777
-    crudeOil: "stable",
     crude_oil_delta: 0 // Range: -0.0367144071644758 to 0.0429880748555434
   });
   
@@ -323,28 +322,6 @@ export function SimulatorControls() {
             positiveImpact="Positive global markets lift domestic stocks through risk-on sentiment"
             negativeImpact="Global market weakness drags down domestic stocks via risk-off flows"
           />
-
-          <div className="space-y-2">
-            <Label className="flex items-center text-sm">
-              {/* Crude Oil Prices Removed */}
-            </Label>
-            <Select 
-              value={marketEnvironment.crudeOil} 
-              onValueChange={(value: string) => setMarketEnvironment(prev => ({ ...prev, crudeOil: value }))}
-            >
-              <SelectTrigger className="bg-card">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="sharply-up">🚀 Sharply Up</SelectItem>
-                <SelectItem value="up">� Up</SelectItem>
-                <SelectItem value="stable">➖ Stable</SelectItem>
-                <SelectItem value="down">📉 Down</SelectItem>
-                <SelectItem value="sharply-down">💥 Sharply Down</SelectItem>
-              </SelectContent>
-            </Select>
-            <ImpactInfo value={marketEnvironment.crudeOil} />
-          </div>
 
           {/* INR-USD Exchange Delta */}
           <MarketSlider
