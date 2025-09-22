@@ -21,6 +21,11 @@ export function SimulationDialog({
   const [horizon, setHorizon] = useState<number>(30);
   const [error, setError] = useState<string>("");
 
+  // Debug logging when dialog opens
+  if (open) {
+    console.log('🚀 SimulationDialog opened with:', { horizon, isLoading, error });
+  }
+
   const validateHorizon = (value: number): boolean => {
     if (value < 1) {
       setError("Must be at least 1 day");
@@ -39,9 +44,26 @@ export function SimulationDialog({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = parseInt(e.target.value) || 0;
+    const inputValue = e.target.value;
+    console.log('📝 Input changed to:', inputValue);
+    
+    // Handle empty input properly
+    if (inputValue === '') {
+      setHorizon(0);  // Set to 0 instead of NaN
+      setError("Must be at least 1 day");
+      return;
+    }
+    
+    const value = parseInt(inputValue);
+    if (isNaN(value)) {
+      setHorizon(0);
+      setError("Please enter a valid number");
+      return;
+    }
+    
     setHorizon(value);
     validateHorizon(value);
+    console.log('✅ Horizon set to:', value);
   };
 
   const handleConfirm = () => {
@@ -60,9 +82,9 @@ export function SimulationDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="w-[400px]">
+      <DialogContent className="w-[450px] max-w-[90vw]">
         <DialogHeader>
-          <DialogTitle>Run Market Simulation</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">Run Market Simulation</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-4 py-4">
@@ -73,10 +95,11 @@ export function SimulationDialog({
               type="number"
               min={1}
               max={365}
-              value={horizon || ""}
+              value={horizon === 0 ? "" : horizon}
               onChange={handleInputChange}
               placeholder="Enter days (1-365)"
               className={error && !error.startsWith('Warning') ? "border-red-500" : ""}
+              autoFocus
             />
             {error && (
               <p className={`text-xs ${error.startsWith('Warning') ? 'text-yellow-600' : 'text-red-500'}`}>
@@ -101,26 +124,26 @@ export function SimulationDialog({
           </div>
         </div>
 
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>
+        <DialogFooter className="flex flex-row justify-end space-x-2 pt-6">
+          <Button 
+            variant="outline" 
+            onClick={onClose} 
+            disabled={isLoading}
+            className="min-w-[80px]"
+          >
             Cancel
           </Button>
           <Button 
-            onClick={handleConfirm} 
+            onClick={() => {
+              console.log('🎯 Run Simulation button clicked in dialog!');
+              console.log('Current horizon value:', horizon);
+              handleConfirm();
+            }} 
             disabled={isLoading || horizon < 1}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="min-w-[140px]"
           >
-            {isLoading ? (
-              <div className="flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                <span>Running...</span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <Play className="h-4 w-4" />
-                <span>Run Simulation</span>
-              </div>
-            )}
+            <Play className="h-4 w-4 mr-2" />
+            Run Simulation
           </Button>
         </DialogFooter>
       </DialogContent>

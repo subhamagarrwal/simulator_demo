@@ -8,11 +8,12 @@ Supports both HOLD (constant environment) and TRAJECTORY (time-varying) modes.
 import os
 import numpy as np
 import pandas as pd
-import pickle
+import joblib  # Changed from pickle to joblib
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Union, Any
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+from pandas.tseries.offsets import BDay  # Added for business day calculations
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend integration
