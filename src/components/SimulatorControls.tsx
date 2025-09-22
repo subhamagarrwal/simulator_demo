@@ -384,7 +384,8 @@ export function SimulatorControls() {
       });
       
       await simulation.runBackendSimulation(
-        controls,
+        marketEnvironment,
+        selectedEvents,
         horizon,
         controlMode.toLowerCase() as 'hold' | 'trajectory'
       );
@@ -463,6 +464,36 @@ export function SimulatorControls() {
         {companyProfile && (
           <StockOverview profile={companyProfile} />
         )}
+
+        {/* Current Mode Indicator */}
+        <Card className={`border-2 ${controlMode === 'HOLD' ? 'border-green-500/40 bg-green-50/10' : 'border-blue-500/40 bg-blue-50/10'}`}>
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className={`p-2 rounded-full ${controlMode === 'HOLD' ? 'bg-green-500' : 'bg-blue-500'}`}>
+                  {controlMode === 'HOLD' ? 
+                    <CheckCircle className="h-4 w-4 text-white" /> : 
+                    <TrendingUp className="h-4 w-4 text-white" />
+                  }
+                </div>
+                <div>
+                  <div className="font-semibold text-sm">
+                    Current Mode: <span className={controlMode === 'HOLD' ? 'text-green-700' : 'text-blue-700'}>{controlMode}</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {controlMode === 'HOLD' ? 
+                      'Market conditions stay constant (scalar values)' : 
+                      'Market conditions can change over time (array values)'
+                    }
+                  </div>
+                </div>
+              </div>
+              <Badge variant={controlMode === 'HOLD' ? 'default' : 'secondary'} className="text-xs">
+                {controlMode === 'HOLD' ? 'Static' : 'Dynamic'}
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Changed Controls Indicator */}
         {Object.keys(changedControls).length > 0 && (

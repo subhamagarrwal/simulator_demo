@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { PriceSimulationEngine, SimulationState, MarketConditions, CompanyEvent, CandlestickData } from '../engine/PriceSimulationEngine';
-import { simulationAPI, SimulationRequest, CompanyMeta, SimulationControls, OHLCData } from '../services/simulationAPI';
+import { simulationAPI, SimulationRequest, CompanyMeta, SimulationControls, OHLCData, SimulationHelper } from '../services/simulationAPI';
 
 export interface SessionCompanyProfile {
   companyName?: string;
@@ -31,7 +31,12 @@ interface SimulationContextType {
   // Actions
   initializeSession: (profile: SessionCompanyProfile) => void;
   clearSession: () => void;
-  runBackendSimulation: (controls: Partial<SimulationControls>, horizon: number, mode: 'hold' | 'trajectory') => Promise<void>;
+  runBackendSimulation: (
+    marketEnvironment: any, 
+    selectedEvents: any, 
+    horizon: number, 
+    mode: 'hold' | 'trajectory'
+  ) => Promise<void>;
   
   // Legacy actions (keeping for compatibility)
   initializeSimulation: (profile: SessionCompanyProfile) => void;
@@ -114,7 +119,8 @@ export function SimulationProvider({ children }: SimulationProviderProps) {
 
   // Backend simulation runner
   const runBackendSimulation = async (
-    controls: Partial<SimulationControls>, 
+    marketEnvironment: any,
+    selectedEvents: any,
     horizon: number, 
     mode: 'hold' | 'trajectory'
   ) => {
@@ -131,17 +137,18 @@ export function SimulationProvider({ children }: SimulationProviderProps) {
       const startDate = new Date().toISOString().split('T')[0]; // Today's date
       const lastClose = getBasePriceForSize(sessionProfile.size);
 
-      const request: SimulationRequest = {
-        company_meta: companyMeta,
-        last_close: lastClose,
-        start_date: startDate,
-        horizon: horizon,
-        mode: mode,
-        controls: controls,
-        events: [] // Can be extended later for specific dated events
-      };
+      // Use the new formatter to create the proper request
+      const request = SimulationHelper.formatSimulationRequest(
+        marketEnvironment,
+        selectedEvents,
+        companyMeta,
+        horizon,
+        mode,
+        lastClose,
+        startDate
+      );
 
-      console.log('Running backend simulation with request:', request);
+      console.log('Running backend simulation with formatted request:', request);
       const response = await simulationAPI.simulate(request);
       
       setSimulationResults(response.ohlc_data);
