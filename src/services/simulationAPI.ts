@@ -4,11 +4,12 @@
  */
 
 export interface CompanyMeta {
-  company_id: string;
   company_name: string;
+  ticker: string;
   sector: string;
   market_cap_bucket: 'large_cap' | 'mid_cap' | 'small_cap';
   company_size: 'large_cap' | 'mid_cap' | 'small_cap';
+  company_id?: string; // Optional fallback
 }
 
 export interface SimulationControls {
@@ -58,6 +59,9 @@ export interface SimulationResponse {
   status: 'success' | 'error';
   simulation_info: {
     company_name: string;
+    ticker: string;
+    sector: string;
+    market_cap_bucket: string;
     mode: string;
     horizon: number;
     start_date: string;
@@ -197,11 +201,12 @@ export class SimulationHelper {
    */
   static createSampleCompanyMeta(): CompanyMeta {
     return {
-      company_id: "SAMPLE001",
-      company_name: "Sample Corp",
+      company_name: "Sample Corp Ltd",
+      ticker: "SMPL",
       sector: "technology",
       market_cap_bucket: "mid_cap",
-      company_size: "mid_cap"
+      company_size: "mid_cap",
+      company_id: "SAMPLE001" // Optional fallback
     };
   }
   

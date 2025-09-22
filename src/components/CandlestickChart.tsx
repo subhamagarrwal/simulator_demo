@@ -279,8 +279,10 @@ export function CandlestickChart() {
     return symbols[sector] || "COMPANY";
   };
   
-  const companySymbol = simulation.engine?.getState().companyProfile.sector ? 
-    getCompanySymbol(simulation.engine.getState().companyProfile.sector) : "STOCK";
+  // Prioritize user-provided ticker, fallback to sector-based generic ticker
+  const profile = simulation.engine?.getState().companyProfile;
+  const companySymbol = profile?.ticker || 
+    (profile?.sector ? getCompanySymbol(profile.sector) : "STOCK");
   
   return (
     <div className="h-full w-full">

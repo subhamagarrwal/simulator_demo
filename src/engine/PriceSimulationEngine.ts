@@ -29,6 +29,8 @@ export interface SimulationState {
   startTime: Date;
   historicalData: CandlestickData[];
   companyProfile: {
+    companyName?: string;
+    ticker?: string;
     size: string;
     sector: string;
     companySizeValue: number; // Random value between 10-98
@@ -72,8 +74,10 @@ export class PriceSimulationEngine {
       startTime: new Date(),
       historicalData: [],
       companyProfile: { 
+        companyName: initialState.companyProfile?.companyName,
+        ticker: initialState.companyProfile?.ticker,
         size: companySize, 
-        sector: 'it',
+        sector: initialState.companyProfile?.sector || 'it',
         companySizeValue: randomSizeValue
       },
       marketConditions: {

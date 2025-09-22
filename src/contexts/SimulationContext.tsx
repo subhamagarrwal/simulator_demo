@@ -11,7 +11,7 @@ interface SimulationContextType {
   simulationDuration: { days: number; hours: number; minutes: number; startDate: string };
   
   // Actions
-  initializeSimulation: (profile: { size: string; sector: string }) => void;
+  initializeSimulation: (profile: { companyName?: string; ticker?: string; size: string; sector: string }) => void;
   updateMarketConditions: (conditions: Partial<MarketConditions>) => void;
   triggerEvent: (event: CompanyEvent) => void;
   simulateNextDay: () => void;
@@ -49,7 +49,7 @@ export function SimulationProvider({ children }: SimulationProviderProps) {
     }
   };
   
-  const initializeSimulation = (profile: { size: string; sector: string }) => {
+  const initializeSimulation = (profile: { companyName?: string; ticker?: string; size: string; sector: string }) => {
     const basePrice = getBasePriceForSize(profile.size);
     
     const newEngine = new PriceSimulationEngine({

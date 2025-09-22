@@ -182,7 +182,7 @@ const impactExplanations = {
 export function SimulatorControls() {
   const simulation = useSimulation();
   const [showProfileDialog, setShowProfileDialog] = useState(true);
-  const [companyProfile, setCompanyProfile] = useState<{size: string; sector: string} | null>(null);
+  const [companyProfile, setCompanyProfile] = useState<{companyName?: string; ticker?: string; size: string; sector: string} | null>(null);
   
   const [marketEnvironment, setMarketEnvironment] = useState({
     sentiment: "neutral",
@@ -199,7 +199,8 @@ export function SimulatorControls() {
   const [activeEvent, setActiveEvent] = useState<string | null>(null);
   const [selectedEventOption, setSelectedEventOption] = useState<string | null>(null);
 
-  const handleProfileSet = (profile: {size: string; sector: string}) => {
+  const handleProfileSet = (profile: {companyName?: string; ticker?: string; size: string; sector: string}) => {
+    console.log('SimulatorControls handleProfileSet received:', profile);
     setCompanyProfile(profile);
     setShowProfileDialog(false);
     simulation.initializeSimulation(profile);

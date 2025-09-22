@@ -4,6 +4,8 @@ import { Building2, TrendingUp, Activity } from "lucide-react";
 import { useSimulation } from "../contexts/SimulationContext";
 
 interface CompanyProfile {
+  companyName?: string;
+  ticker?: string;
   size: string;
   sector: string;
 }
@@ -14,6 +16,9 @@ interface StockOverviewProps {
 
 export function StockOverview({ profile }: StockOverviewProps) {
   const simulation = useSimulation();
+  
+  // Debug logging
+  console.log('StockOverview received profile:', profile);
   
   const currentPrice = simulation.currentPrice;
   const priceChange = simulation.priceChange.absolute;
@@ -70,6 +75,36 @@ export function StockOverview({ profile }: StockOverviewProps) {
     return companyNames[sector] || "Your Company Ltd";
   };
 
+  const getCompanyTicker = (sector: string) => {
+    const tickerNames: Record<string, string> = {
+      "financial-services": "ABCFIN",
+      "it": "TECHCORP",
+      "healthcare": "MEDLIFE",
+      "consumer-discretionary": "RETAIL",
+      "consumer-staples": "FASTCON",
+      "industrials": "INDTECH",
+      "materials": "BUILD",
+      "chemicals": "CHEM",
+      "metals-mining": "STEEL",
+      "energy": "POWER",
+      "utilities": "UTIL",
+      "real-estate": "PROP",
+      "telecom": "CONNECT"
+    };
+    return tickerNames[sector] || "STOCK";
+  };
+
+  // Use provided names or fallback to generic ones
+  const displayCompanyName = profile.companyName || getCompanyName(profile.sector);
+  const displayTicker = profile.ticker || getCompanyTicker(profile.sector);
+
+  console.log('Display values:', {
+    providedCompanyName: profile.companyName,
+    displayCompanyName,
+    providedTicker: profile.ticker,
+    displayTicker
+  });
+
   const isPositive = priceChange >= 0;
 
   return (
@@ -90,7 +125,12 @@ export function StockOverview({ profile }: StockOverviewProps) {
           {/* Company Info */}
           <div>
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">{getCompanyName(profile.sector)}</h3>
+              <div className="flex items-center space-x-2">
+                <h3 className="text-lg font-semibold">{displayCompanyName}</h3>
+                <Badge variant="outline" className="text-xs font-mono bg-blue-50 text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                  {displayTicker}
+                </Badge>
+              </div>
               <Badge variant="outline" className="text-xs">
                 {getSizeLabel(profile.size)}
               </Badge>

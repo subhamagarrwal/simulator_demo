@@ -114,8 +114,9 @@ def make_future_features(
     # Create DataFrame
     df = pd.DataFrame({**data, **cat_data})
     df.insert(0, "date", dates)
-    df["company_id"] = company_meta["company_id"]
-    df["company_name"] = company_meta.get("company_name", company_meta["company_id"])
+    df["company_id"] = company_meta.get("company_id", company_meta["ticker"])  # fallback to ticker if no company_id
+    df["ticker"] = company_meta["ticker"]
+    df["company_name"] = company_meta["company_name"]
     df["company_size"] = company_meta["company_size"]
     
     # Apply events (override specific dates/fields)
@@ -233,6 +234,16 @@ def simulate():
         # Validation
         if not company_meta:
             return jsonify({"error": "company_meta is required"}), 400
+        
+        # Validate required company information
+        required_company_fields = ["company_name", "ticker", "sector", "market_cap_bucket", "company_size"]
+        missing_fields = [field for field in required_company_fields if not company_meta.get(field)]
+        if missing_fields:
+            return jsonify({
+                "error": f"Missing required company fields: {', '.join(missing_fields)}",
+                "required_fields": required_company_fields
+            }), 400
+            
         if last_close is None:
             return jsonify({"error": "last_close is required"}), 400
         if not start_date:
@@ -282,7 +293,10 @@ def simulate():
         response = {
             "status": "success",
             "simulation_info": {
-                "company_name": company_meta.get("company_name", "Unknown"),
+                "company_name": company_meta["company_name"],
+                "ticker": company_meta["ticker"],
+                "sector": company_meta["sector"],
+                "market_cap_bucket": company_meta["market_cap_bucket"],
                 "mode": mode,
                 "horizon": horizon,
                 "start_date": start_date,
