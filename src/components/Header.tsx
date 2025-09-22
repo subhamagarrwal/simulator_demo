@@ -1,6 +1,5 @@
-import { Bell, Settings, User, Search, TrendingUp } from "lucide-react";
+import { Bell, Settings, User, TrendingUp } from "lucide-react";
 import { Button } from "./ui/button";
-import { Input } from "./ui/input";
 import { useSimulation } from "../contexts/SimulationContext";
 
 export function Header() {
@@ -25,13 +24,6 @@ export function Header() {
                 )}
               </div>
             </div>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Search markets..."
-              className="w-64 pl-10 bg-input-background"
-            />
           </div>
         </div>
         

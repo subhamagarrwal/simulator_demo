@@ -1,6 +1,103 @@
-import { ResponsiveContainer, LineChart, XAxis, YAxis, CartesianGrid, ReferenceLine } from "recharts";
+import { ResponsiveContainer, LineChart, XAxis, YAxis, CartesianGrid, ReferenceLine, Line, Tooltip } from "recharts";
 import { useState, useMemo } from "react";
 import { useSimulation } from "../contexts/SimulationContext";
+import { Button } from "./ui/button";
+import { BarChart3, TrendingUp } from "lucide-react";
+
+const CustomLineChart = ({ data }: { data: any[] }) => {
+  // Add debugging
+  console.log('CustomLineChart data:', data);
+  
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-full text-muted-foreground">
+        No data available for line chart
+      </div>
+    );
+  }
+
+  // Custom tooltip component for line chart
+  const CustomTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+      const dataPoint = payload[0].payload;
+      const isGreen = dataPoint.close > dataPoint.open;
+      
+      return (
+        <div className="bg-card border border-border rounded-lg p-3 shadow-lg">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-foreground">{dataPoint.time}</p>
+            <div className={`w-2 h-2 rounded-full ${isGreen ? 'bg-green-500' : 'bg-red-500'}`} />
+          </div>
+          <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Price:</span>
+              <span className={`font-medium ${isGreen ? 'text-green-500' : 'text-red-500'}`}>
+                ₹{dataPoint.close.toFixed(2)}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Open:</span>
+              <span className="text-foreground font-medium">₹{dataPoint.open.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">High:</span>
+              <span className="text-green-500 font-medium">₹{dataPoint.high.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Low:</span>
+              <span className="text-red-500 font-medium">₹{dataPoint.low.toFixed(2)}</span>
+            </div>
+          </div>
+          <div className="flex justify-between text-xs mt-2 pt-2 border-t border-border">
+            <span className="text-muted-foreground">Volume:</span>
+            <span className="text-foreground font-medium">{dataPoint.volume.toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between text-xs mt-1">
+            <span className="text-muted-foreground">Change:</span>
+            <span className={`font-medium ${isGreen ? 'text-green-500' : 'text-red-500'}`}>
+              {isGreen ? '+' : ''}₹{(dataPoint.close - dataPoint.open).toFixed(2)}
+            </span>
+          </div>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  return (
+    <LineChart 
+      data={data} 
+      margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
+      width={800}
+      height={400}
+    >
+      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+      <XAxis 
+        dataKey="time" 
+        axisLine={false}
+        tickLine={false}
+        tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
+        interval="preserveStartEnd"
+      />
+      <YAxis 
+        axisLine={false}
+        tickLine={false}
+        tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
+        tickFormatter={(value) => `₹${value.toFixed(0)}`}
+        domain={['dataMin - 5', 'dataMax + 5']}
+      />
+      <Tooltip content={<CustomTooltip />} />
+      <Line 
+        type="monotone" 
+        dataKey="close" 
+        stroke="#3b82f6" 
+        strokeWidth={2}
+        dot={false}
+        activeDot={{ r: 4, stroke: '#3b82f6', strokeWidth: 2, fill: '#ffffff' }}
+      />
+    </LineChart>
+  );
+};
 
 const CandlestickItem = ({ x, y, width, height, payload, candleWidth = 8 }: any) => {
   if (!payload) return null;
@@ -240,6 +337,7 @@ const CustomCandlestickChart = ({ data, width, height }: any) => {
 
 export function CandlestickChart() {
   const simulation = useSimulation();
+  const [viewMode, setViewMode] = useState<'candlestick' | 'line'>('candlestick');
   
   // Transform simulation data for chart display
   const candleData = useMemo(() => {
@@ -298,18 +396,47 @@ export function CandlestickChart() {
             </span>
           </div>
         </div>
-        <div className="flex flex-col items-end">
-          <div className="text-sm text-muted-foreground">Stock Simulation Running For</div>
-          <div className="text-lg font-medium text-primary">
-            {simulationDuration.days} Days {simulationDuration.hours}h {simulationDuration.minutes}m
+        <div className="flex items-center space-x-6">
+          <div className="flex flex-col items-end">
+            <div className="flex items-center space-x-2 mb-2">
+              <div className="text-sm text-muted-foreground">Chart View:</div>
+              <div className="flex bg-muted rounded-lg p-1">
+                <Button
+                  variant={viewMode === 'candlestick' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode('candlestick')}
+                >
+                  <BarChart3 className="h-3 w-3 mr-1" />
+                  Candlestick
+                </Button>
+                <Button
+                  variant={viewMode === 'line' ? 'default' : 'ghost'}
+                  size="sm"
+                  className="h-7 px-3 text-xs"
+                  onClick={() => setViewMode('line')}
+                >
+                  <TrendingUp className="h-3 w-3 mr-1" />
+                  Line
+                </Button>
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground">Stock Simulation Running For</div>
+            <div className="text-lg font-medium text-primary">
+              {simulationDuration.days} Days {simulationDuration.hours}h {simulationDuration.minutes}m
+            </div>
+            <div className="text-xs text-muted-foreground">Started {simulationDuration.startDate}</div>
           </div>
-          <div className="text-xs text-muted-foreground">Started {simulationDuration.startDate}</div>
         </div>
       </div>
       
       <div className="h-[calc(100%-80px)]">
         <ResponsiveContainer width="100%" height="100%">
-          <CustomCandlestickChart data={candleData} />
+          {viewMode === 'candlestick' ? (
+            <CustomCandlestickChart data={candleData} />
+          ) : (
+            <CustomLineChart data={candleData} />
+          )}
         </ResponsiveContainer>
       </div>
     </div>
