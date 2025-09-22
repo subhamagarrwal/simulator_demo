@@ -18,17 +18,18 @@ export function SimpleSimulationDialog({
   onConfirm, 
   isLoading = false 
 }: SimpleSimulationDialogProps) {
-  const [horizon, setHorizon] = useState(30);
+  const [horizon, setHorizon] = useState<number | ''>(30);
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
+    const horizonNum = typeof horizon === 'number' ? horizon : parseInt(horizon as string);
     
-    if (!horizon || horizon < 1 || horizon > 365) {
+    if (!horizon || isNaN(horizonNum) || horizonNum < 1 || horizonNum > 365) {
       newErrors.horizon = 'Horizon must be between 1 and 365 days';
     }
     
-    if (horizon > 90) {
+    if (horizonNum > 90) {
       newErrors.horizon = 'Warning: Simulations over 90 days may take longer to process';
     }
     
@@ -38,7 +39,8 @@ export function SimpleSimulationDialog({
 
   const handleConfirm = () => {
     if (validateForm()) {
-      onConfirm(horizon);
+      const horizonNum = typeof horizon === 'number' ? horizon : parseInt(horizon as string);
+      onConfirm(horizonNum);
     }
   };
 
@@ -69,7 +71,10 @@ export function SimpleSimulationDialog({
               min={1}
               max={365}
               value={horizon}
-              onChange={(e) => setHorizon(parseInt(e.target.value) || 30)}
+              onChange={(e) => {
+                const val = e.target.value;
+                setHorizon(val === '' ? '' : parseInt(val));
+              }}
               className={`text-sm ${errors.horizon && !errors.horizon.startsWith('Warning') ? "border-red-500" : ""}`}
               placeholder="Enter number of days (1-365)"
             />
@@ -87,11 +92,11 @@ export function SimpleSimulationDialog({
             <div className="grid grid-cols-2 gap-4 text-sm">
               <div>
                 <span className="text-muted-foreground">Estimated Duration:</span>
-                <p className="font-medium">{getEstimatedDuration(horizon)}</p>
+                <p className="font-medium">{getEstimatedDuration(typeof horizon === 'number' ? horizon : parseInt(horizon as string) || 1)}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Data Points:</span>
-                <p className="font-medium">{horizon} candlesticks</p>
+                <p className="font-medium">{typeof horizon === 'number' ? horizon : parseInt(horizon as string) || 1} candlesticks</p>
               </div>
             </div>
           </div>
@@ -108,7 +113,7 @@ export function SimpleSimulationDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={isLoading || (!horizon || horizon < 1)}
+            disabled={isLoading || (!horizon || (typeof horizon === 'number' ? horizon : parseInt(horizon as string) || 0) < 1)}
             className="flex-1 bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
           >
             {isLoading ? (
@@ -119,7 +124,7 @@ export function SimpleSimulationDialog({
             ) : (
               <>
                 <Play className="h-4 w-4 mr-2" />
-                Run {horizon}-Day Simulation
+                Run {typeof horizon === 'number' ? horizon : parseInt(horizon as string) || 1}-Day Simulation
               </>
             )}
           </Button>

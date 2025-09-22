@@ -8,8 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 import { Badge } from "./ui/badge";
 import { CompanyProfileDialog } from "./CompanyProfileDialog";
 import { StockOverview } from "./StockOverview";
-import { SimulationSummaryDialog } from "./SimulationSummaryDialog";
-import { SimulationResultsDialog } from "./SimulationResultsDialog";
+import { SimulationDialog } from "./SimulationDialog";
 import { useSimulation } from "../contexts/SimulationContext";
 import { 
   Building2, 
@@ -186,7 +185,6 @@ export function SimulatorControls() {
   const simulation = useSimulation();
   const [showProfileDialog, setShowProfileDialog] = useState(true);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
-  const [showResultsDialog, setShowResultsDialog] = useState(false);
   const [currentSimulationInfo, setCurrentSimulationInfo] = useState<{
     name?: string;
     ticker?: string;
@@ -234,7 +232,13 @@ export function SimulatorControls() {
 
   // State for categorical events (keeping existing structure)
   const [activeEvents, setActiveEvents] = useState<Set<string>>(new Set());
-  const [selectedEventOption, setSelectedEventOption] = useState<string | null>(null);
+  const [selectedEvents, setSelectedEvents] = useState({
+    earnings: null as string | null,
+    analyst: null as string | null,
+    majorNews: null as string | null,
+    insiderActivity: null as string | null,
+    globalShock: null as string | null
+  });
   
   // State to track what user has changed (for summary dialog)
   const [changedControls, setChangedControls] = useState<Record<string, any>>({});
@@ -260,7 +264,6 @@ export function SimulatorControls() {
   useEffect(() => {
     if (simulation.simulationResults && !simulation.isSimulating && currentSimulationInfo) {
       setShowSummaryDialog(false);
-      setShowResultsDialog(true);
     }
   }, [simulation.simulationResults, simulation.isSimulating, currentSimulationInfo]);
 
@@ -284,7 +287,18 @@ export function SimulatorControls() {
         } else if (eventType === 'shock') {
           handleControlChange('predefined_global_shock', NEUTRAL_DEFAULTS.predefined_global_shock);
         }
-        setSelectedEventOption(null);
+        // Reset the specific event selection
+        if (eventType === 'earnings') {
+          setSelectedEvents(prev => ({...prev, earnings: null}));
+        } else if (eventType === 'analyst') {
+          setSelectedEvents(prev => ({...prev, analyst: null}));
+        } else if (eventType === 'major_news') {
+          setSelectedEvents(prev => ({...prev, majorNews: null}));
+        } else if (eventType === 'insider') {
+          setSelectedEvents(prev => ({...prev, insiderActivity: null}));
+        } else if (eventType === 'shock') {
+          setSelectedEvents(prev => ({...prev, globalShock: null}));
+        }
       } else {
         // Add event if not active
         newSet.add(eventType);
@@ -308,15 +322,19 @@ export function SimulatorControls() {
       crude_oil_delta: NEUTRAL_DEFAULTS.crude_oil_delta
     });
     setActiveEvents(new Set());
-    setSelectedEventOption(null);
+    setSelectedEvents({
+      earnings: null,
+      analyst: null,
+      majorNews: null,
+      insiderActivity: null,
+      globalShock: null
+    });
     setChangedControls({});
   };
 
   // Handle simulation confirmation
   const handleSimulationConfirm = async (horizon: number) => {
     if (!companyProfile) return;
-    
-    console.log('Running simulation with horizon:', horizon);
     
     // Convert frontend data to backend format
     const controls = {
@@ -333,6 +351,29 @@ export function SimulatorControls() {
       predefined_global_shock: changedControls.predefined_global_shock || NEUTRAL_DEFAULTS.predefined_global_shock,
     };
 
+    // Create complete simulation parameters JSON
+    const simulationParams = {
+      company_profile: {
+        name: companyProfile.companyName,
+        ticker: companyProfile.ticker,
+        sector: companyProfile.sector,
+        size: companyProfile.size,
+      },
+      simulation_settings: {
+        horizon: horizon,
+        mode: controlMode.toLowerCase(),
+        date_created: new Date().toISOString()
+      },
+      market_controls: controls,
+      changed_from_neutral: Object.keys(changedControls).length > 0 ? changedControls : "none",
+      active_events: Array.from(activeEvents).length > 0 ? Array.from(activeEvents) : "none"
+    };
+
+    // Log detailed JSON to terminal
+    console.log('\n=== FINANCIAL SIMULATION PARAMETERS ===');
+    console.log(JSON.stringify(simulationParams, null, 2));
+    console.log('==========================================\n');
+    
     try {
       // Set simulation info for results display
       setCurrentSimulationInfo({
@@ -410,23 +451,11 @@ export function SimulatorControls() {
         onProfileSet={handleProfileSet}
       />
       
-      <SimulationSummaryDialog
+      <SimulationDialog
         open={showSummaryDialog}
         onClose={() => setShowSummaryDialog(false)}
         onConfirm={handleSimulationConfirm}
         isLoading={simulation.isSimulating}
-      />
-      
-      <SimulationResultsDialog
-        open={showResultsDialog}
-        onClose={() => {
-          setShowResultsDialog(false);
-          setCurrentSimulationInfo(null);
-        }}
-        data={simulation.simulationResults}
-        isLoading={simulation.isSimulating}
-        error={simulation.simulationError}
-        companyInfo={currentSimulationInfo || undefined}
       />
       
       <div className="space-y-6">
@@ -648,17 +677,19 @@ export function SimulatorControls() {
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
-                      variant={selectedEventOption === option.key ? "default" : "outline"} 
+                      variant={selectedEvents.earnings && option.key === selectedEvents.earnings ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
                       onClick={() => {
-                        const newValue = selectedEventOption === option.key ? null : option.key;
-                        setSelectedEventOption(newValue);
-                        // Track this change
-                        if (newValue) {
-                          handleControlChange('earnings_announcement', option.value);
-                        } else {
+                        const isCurrentlySelected = selectedEvents.earnings === option.key;
+                        if (isCurrentlySelected) {
+                          // Deselect - reset to neutral
+                          setSelectedEvents(prev => ({...prev, earnings: null}));
                           handleControlChange('earnings_announcement', NEUTRAL_DEFAULTS.earnings_announcement);
+                        } else {
+                          // Select this option
+                          setSelectedEvents(prev => ({...prev, earnings: option.key}));
+                          handleControlChange('earnings_announcement', option.value);
                         }
                       }}
                     >
@@ -667,7 +698,7 @@ export function SimulatorControls() {
                         <span className="text-xs text-muted-foreground">({option.value})</span>
                       </span>
                     </Button>
-                    {selectedEventOption === option.key && (
+                    {selectedEvents.earnings === option.key && (
                       <div className="mt-1 p-2 bg-accent/50 rounded text-xs text-muted-foreground">
                         <Info className="inline h-3 w-3 mr-1 text-primary" />
                         <div className="space-y-1">
@@ -697,18 +728,21 @@ export function SimulatorControls() {
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
-                      variant={selectedEventOption === option.key ? "default" : "outline"} 
+                      variant={selectedEvents.analyst === option.key ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
                       onClick={() => {
-                        const newValue = selectedEventOption === option.key ? null : option.key;
-                        setSelectedEventOption(newValue);
-                        // Track this change - convert to 0-1 range for backend
-                        if (newValue) {
+                        const isCurrentlySelected = selectedEvents.analyst === option.key;
+                        if (isCurrentlySelected) {
+                          // Deselect - reset to neutral
+                          setSelectedEvents(prev => ({...prev, analyst: null}));
+                          handleControlChange('analyst_rating_change', NEUTRAL_DEFAULTS.analyst_rating_change);
+                        } else {
+                          // Select this option
+                          setSelectedEvents(prev => ({...prev, analyst: option.key}));
+                          // Convert to 0-1 range for backend
                           const backendValue = (option.value + 2) / 4; // Convert -2 to +2 range to 0-1
                           handleControlChange('analyst_rating_change', backendValue);
-                        } else {
-                          handleControlChange('analyst_rating_change', NEUTRAL_DEFAULTS.analyst_rating_change);
                         }
                       }}
                     >
@@ -719,7 +753,7 @@ export function SimulatorControls() {
                         </span>
                       </span>
                     </Button>
-                    {selectedEventOption === option.key && (
+                    {selectedEvents.analyst === option.key && (
                       <div className="mt-1 p-2 bg-accent/50 rounded text-xs text-muted-foreground">
                         <Info className="inline h-3 w-3 mr-1 text-primary" />
                         <div className="space-y-1">
@@ -752,18 +786,20 @@ export function SimulatorControls() {
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
-                      variant={selectedEventOption === option.key ? "default" : "outline"} 
+                      variant={selectedEvents.majorNews === option.key ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
                       onClick={() => {
-                        const newValue = selectedEventOption === option.key ? null : option.key;
-                        setSelectedEventOption(newValue);
-                        // Track this change
-                        if (newValue) {
+                        const isCurrentlySelected = selectedEvents.majorNews === option.key;
+                        if (isCurrentlySelected) {
+                          // Deselect - reset to neutral
+                          setSelectedEvents(prev => ({...prev, majorNews: null}));
+                          handleControlChange('major_news', NEUTRAL_DEFAULTS.major_news);
+                        } else {
+                          // Select this option
+                          setSelectedEvents(prev => ({...prev, majorNews: option.key}));
                           const newsType = option.type === 'POSITIVE' ? 'positive' : 'negative';
                           handleControlChange('major_news', newsType);
-                        } else {
-                          handleControlChange('major_news', NEUTRAL_DEFAULTS.major_news);
                         }
                       }}
                     >
@@ -776,7 +812,7 @@ export function SimulatorControls() {
                         </span>
                       </span>
                     </Button>
-                    {selectedEventOption === option.key && (
+                    {selectedEvents.majorNews === option.key && (
                       <div className="mt-1 p-2 bg-accent/50 rounded text-xs text-muted-foreground">
                         <Info className="inline h-3 w-3 mr-1 text-primary" />
                         <div className="space-y-1">
@@ -829,18 +865,20 @@ export function SimulatorControls() {
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
-                      variant={selectedEventOption === option.key ? "default" : "outline"} 
+                      variant={selectedEvents.insiderActivity === option.key ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
                       onClick={() => {
-                        const newValue = selectedEventOption === option.key ? null : option.key;
-                        setSelectedEventOption(newValue);
-                        // Track this change
-                        if (newValue) {
+                        const isCurrentlySelected = selectedEvents.insiderActivity === option.key;
+                        if (isCurrentlySelected) {
+                          // Deselect - reset to neutral
+                          setSelectedEvents(prev => ({...prev, insiderActivity: null}));
+                          handleControlChange('insider_activity', NEUTRAL_DEFAULTS.insider_activity);
+                        } else {
+                          // Select this option
+                          setSelectedEvents(prev => ({...prev, insiderActivity: option.key}));
                           const activityType = option.type === 'POSITIVE' ? 'buy' : 'sell';
                           handleControlChange('insider_activity', activityType);
-                        } else {
-                          handleControlChange('insider_activity', NEUTRAL_DEFAULTS.insider_activity);
                         }
                       }}
                     >
@@ -855,7 +893,7 @@ export function SimulatorControls() {
                         </span>
                       </div>
                     </Button>
-                    {selectedEventOption === option.key && (
+                    {selectedEvents.insiderActivity === option.key && (
                       <div className="mt-1 p-2 bg-accent/50 rounded text-xs text-muted-foreground">
                         <Info className="inline h-3 w-3 mr-1 text-primary" />
                         <div className="space-y-1">
@@ -891,23 +929,25 @@ export function SimulatorControls() {
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
-                      variant={selectedEventOption === option.key ? "destructive" : "outline"} 
+                      variant={selectedEvents.globalShock === option.key ? "destructive" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
                       onClick={() => {
-                        const newValue = selectedEventOption === option.key ? null : option.key;
-                        setSelectedEventOption(newValue);
-                        // Track this change
-                        if (newValue) {
-                          handleControlChange('predefined_global_shock', option.backend);
-                        } else {
+                        const isCurrentlySelected = selectedEvents.globalShock === option.key;
+                        if (isCurrentlySelected) {
+                          // Deselect - reset to neutral
+                          setSelectedEvents(prev => ({...prev, globalShock: null}));
                           handleControlChange('predefined_global_shock', NEUTRAL_DEFAULTS.predefined_global_shock);
+                        } else {
+                          // Select this option
+                          setSelectedEvents(prev => ({...prev, globalShock: option.key}));
+                          handleControlChange('predefined_global_shock', option.backend);
                         }
                       }}
                     >
                       {option.label}
                     </Button>
-                    {selectedEventOption === option.key && (
+                    {selectedEvents.globalShock === option.key && (
                       <div className="mt-1 p-2 bg-destructive/20 rounded text-xs text-destructive-foreground">
                         <AlertTriangle className="inline h-3 w-3 mr-1" />
                         {option.impact}
@@ -1078,16 +1118,50 @@ export function SimulatorControls() {
           <Button 
             variant="outline" 
             onClick={() => {
-              if (selectedEventOption && activeEvents.size > 0) {
-                // Trigger events for all active event types
+              // Check if any events are selected across all categories
+              const hasSelectedEvents = Object.values(selectedEvents).some(event => event !== null);
+              
+              if (hasSelectedEvents && activeEvents.size > 0) {
+                // Trigger events for all active event types with their selected subtypes
                 activeEvents.forEach(eventType => {
-                  simulation.triggerEvent({
-                    type: eventType as any,
-                    subtype: selectedEventOption,
-                    impact: 1.0
-                  });
+                  let subtype = null;
+                  
+                  // Map event types to their selected subtypes
+                  switch(eventType) {
+                    case 'earnings':
+                      subtype = selectedEvents.earnings;
+                      break;
+                    case 'analyst':
+                      subtype = selectedEvents.analyst;
+                      break;
+                    case 'news':
+                      subtype = selectedEvents.majorNews;
+                      break;
+                    case 'insider':
+                      subtype = selectedEvents.insiderActivity;
+                      break;
+                    case 'shock':
+                      subtype = selectedEvents.globalShock;
+                      break;
+                  }
+                  
+                  if (subtype) {
+                    simulation.triggerEvent({
+                      type: eventType as any,
+                      subtype: subtype,
+                      impact: 1.0
+                    });
+                  }
                 });
-                setSelectedEventOption(null);
+                
+                // Reset all selections
+                setSelectedEvents({
+                  earnings: null,
+                  analyst: null,
+                  majorNews: null,
+                  insiderActivity: null,
+                  globalShock: null
+                });
                 setActiveEvents(new Set());
               } else {
                 simulation.simulateNextDay();
@@ -1095,8 +1169,8 @@ export function SimulatorControls() {
             }}
             className="w-full text-xs"
           >
-            {selectedEventOption && activeEvents.size > 0
-              ? `🎯 Trigger ${selectedEventOption.replace('-', ' ').toUpperCase()} Event (Legacy)`
+            {Object.values(selectedEvents).some(event => event !== null) && activeEvents.size > 0
+              ? `🎯 Trigger Selected Events (Multi-Select)`
               : 'Simulate Next Day '
             }
           </Button>
