@@ -5,19 +5,19 @@ import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { Calendar, Play } from "lucide-react";
 
-interface SimulationSummaryDialogProps {
+interface SimpleSimulationDialogProps {
   open: boolean;
   onClose: () => void;
   onConfirm: (horizon: number) => void;
   isLoading?: boolean;
 }
 
-export function SimulationSummaryDialog({ 
+export function SimpleSimulationDialog({ 
   open, 
   onClose, 
   onConfirm, 
   isLoading = false 
-}: SimulationSummaryDialogProps) {
+}: SimpleSimulationDialogProps) {
   const [horizon, setHorizon] = useState(30);
   const [errors, setErrors] = useState<Record<string, string>>({});
 

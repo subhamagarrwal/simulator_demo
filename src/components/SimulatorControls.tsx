@@ -8,7 +8,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 import { Badge } from "./ui/badge";
 import { CompanyProfileDialog } from "./CompanyProfileDialog";
 import { StockOverview } from "./StockOverview";
-import { SimulationSummaryDialog, SimulationSummaryData } from "./SimulationSummaryDialog";
+import { SimulationSummaryDialog } from "./SimulationSummaryDialog";
 import { SimulationResultsDialog } from "./SimulationResultsDialog";
 import { useSimulation } from "../contexts/SimulationContext";
 import { 
@@ -312,30 +312,11 @@ export function SimulatorControls() {
     setChangedControls({});
   };
 
-  // Prepare simulation summary data
-  const prepareSimulationData = (): SimulationSummaryData => {
-    const summaryData: SimulationSummaryData = {
-      companyProfile: companyProfile || { size: 'mid-cap', sector: 'technology' },
-      mode: controlMode,
-      changedControls: { ...changedControls },
-      selectedEvents: {
-        activeEvents: Array.from(activeEvents),
-        eventOption: selectedEventOption || undefined,
-      }
-    };
-
-    // The changedControls already contains all the tracked changes from event handlers
-    // No need for additional mapping here since it's done in real-time
-
-    return summaryData;
-  };
-
   // Handle simulation confirmation
   const handleSimulationConfirm = async (horizon: number) => {
     if (!companyProfile) return;
     
-    const summaryData = prepareSimulationData();
-    console.log('Running simulation with data:', summaryData);
+    console.log('Running simulation with horizon:', horizon);
     
     // Convert frontend data to backend format
     const controls = {
@@ -345,11 +326,11 @@ export function SimulatorControls() {
       global_market_cues: marketEnvironment.global_market_cues,
       inr_usd_delta: marketEnvironment.inr_usd_delta,
       crude_oil_delta: marketEnvironment.crude_oil_delta,
-      earnings_announcement: summaryData.changedControls.earnings_announcement || NEUTRAL_DEFAULTS.earnings_announcement,
-      analyst_rating_change: summaryData.changedControls.analyst_rating_change || NEUTRAL_DEFAULTS.analyst_rating_change,
-      major_news: summaryData.changedControls.major_news || NEUTRAL_DEFAULTS.major_news,
-      insider_activity: summaryData.changedControls.insider_activity || NEUTRAL_DEFAULTS.insider_activity,
-      predefined_global_shock: summaryData.changedControls.predefined_global_shock || NEUTRAL_DEFAULTS.predefined_global_shock,
+      earnings_announcement: changedControls.earnings_announcement || NEUTRAL_DEFAULTS.earnings_announcement,
+      analyst_rating_change: changedControls.analyst_rating_change || NEUTRAL_DEFAULTS.analyst_rating_change,
+      major_news: changedControls.major_news || NEUTRAL_DEFAULTS.major_news,
+      insider_activity: changedControls.insider_activity || NEUTRAL_DEFAULTS.insider_activity,
+      predefined_global_shock: changedControls.predefined_global_shock || NEUTRAL_DEFAULTS.predefined_global_shock,
     };
 
     try {
@@ -369,8 +350,8 @@ export function SimulatorControls() {
       // Note: Results dialog will open automatically via useEffect when simulation completes
     } catch (error) {
       console.error('Simulation failed:', error);
-      setCurrentSimulationInfo(null); // Clear info on error
-      // Error handling will be managed by the context
+    } finally {
+      setShowSummaryDialog(false);
     }
   };
 
@@ -431,7 +412,6 @@ export function SimulatorControls() {
       
       <SimulationSummaryDialog
         open={showSummaryDialog}
-        data={prepareSimulationData()}
         onClose={() => setShowSummaryDialog(false)}
         onConfirm={handleSimulationConfirm}
         isLoading={simulation.isSimulating}
@@ -1092,7 +1072,7 @@ export function SimulatorControls() {
             onClick={() => simulation.resetSimulation()}
             className="w-full"
           >
-            Reset Legacy Simulation
+            Reset Simulation
           </Button>
           
           <Button 
@@ -1117,7 +1097,7 @@ export function SimulatorControls() {
           >
             {selectedEventOption && activeEvents.size > 0
               ? `🎯 Trigger ${selectedEventOption.replace('-', ' ').toUpperCase()} Event (Legacy)`
-              : 'Simulate Next Day (Legacy Mode)'
+              : 'Simulate Next Day '
             }
           </Button>
         </div>

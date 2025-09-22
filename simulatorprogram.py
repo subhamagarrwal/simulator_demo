@@ -205,6 +205,50 @@ def get_base_volatility(market_cap_bucket: str) -> float:
     }
     return vol_map.get(market_cap_bucket, 0.015)
 
+def make_ohlc_from_returns(dates, start_price, returns_log, base_vol=0.012):
+    """
+    Generate OHLC data from dates, start price, and log returns.
+    From sample.py - creates candlestick data with realistic high/low values.
+    """
+    ohlc, open_p = [], float(start_price)
+    for d, r in zip(pd.to_datetime(dates), returns_log):
+        close_p = open_p * np.exp(r)
+        intra = abs(r) + base_vol*0.5
+        high_p = max(open_p, close_p) * (1 + np.random.uniform(0, intra))
+        low_p  = min(open_p, close_p)  * (1 - np.random.uniform(0, intra))
+        ohlc.append({"date": d.strftime("%Y-%m-%d"), "open": open_p, "high": high_p, "low": low_p, "close": close_p})
+        open_p = close_p
+    return ohlc
+
+def simulate_path(pipe, company_meta, last_known_close, start_date, horizon=88, mode="hold", controls=None, events=None, base_vol=0.012):
+    """
+    Complete simulation path function from sample.py.
+    Uses the ML model pipeline to predict returns and generate OHLC data.
+    """
+    # Build the same columns the model expects:
+    num_cols = [
+        "overall_market_sentiment","fii_flows","dii_flows","global_market_cues",
+        "inr_usd_delta","crude_oil_delta","company_size","analyst_rating_change","earnings_announcement"
+    ]
+    cat_cols = ["sector","market_cap_bucket","major_news","insider_activity","predefined_global_shock"]
+    
+    # Generate future features
+    future_df = make_future_features(company_meta, start_date, horizon, mode=mode, controls=controls, events=events)
+    
+    # Order columns for the pipeline
+    X_fut = future_df[num_cols + cat_cols]
+    
+    if pipe is None:
+        # Generate synthetic returns if model is not available
+        rhat = generate_synthetic_returns(future_df, controls or {}, events or [], base_vol)
+    else:
+        # Predict daily log-returns using the ML model
+        rhat = pipe.predict(X_fut)
+    
+    # Turn into OHLC path
+    ohlc = make_ohlc_from_returns(future_df['date'], last_known_close, rhat, base_vol=base_vol)
+    return ohlc, future_df, rhat
+
 def generate_synthetic_returns(future_df: pd.DataFrame, controls: Dict, events: List, base_vol: float, seed: Optional[int] = None) -> np.ndarray:
     """
     Generate synthetic log returns based on events and controls when ML model is unavailable.
@@ -306,49 +350,33 @@ def simulate():
         if base_vol is None:
             base_vol = get_base_volatility(company_meta.get("market_cap_bucket", "mid_cap"))
         
-        # Generate future features
-        future_df = make_future_features(
+        # Use the integrated simulate_path function for complete simulation
+        ohlc_data, future_df, log_returns = simulate_path(
+            pipe=pipe,
             company_meta=company_meta,
+            last_known_close=last_close,
             start_date=start_date,
             horizon=horizon,
             mode=mode,
             controls=controls,
-            events=events
+            events=events,
+            base_vol=base_vol
         )
         
-        # Check if model is available
+        # Get feature information
         if pipe is None:
-            print("⚠️  Model not loaded - using synthetic data generation")
-            # Generate synthetic log returns based on events and controls
-            log_returns = generate_synthetic_returns(future_df, controls, events, base_vol, seed)
             available_features = ["synthetic_generation"]
+            model_status = "synthetic_fallback"
         else:
-            # Use the actual ML model for predictions
-            # Prepare features for prediction
-            # Assuming the model expects specific columns - adjust as needed
-            feature_cols = [
+            # The actual features used by the model
+            available_features = [
                 "overall_market_sentiment", "fii_flows", "dii_flows", 
                 "global_market_cues", "inr_usd_delta", "crude_oil_delta",
-                "earnings_announcement", "analyst_rating_change",
+                "company_size", "analyst_rating_change", "earnings_announcement",
                 "sector", "market_cap_bucket", "major_news", 
                 "insider_activity", "predefined_global_shock"
             ]
-            
-            # Select features that exist in the dataframe
-            available_features = [col for col in feature_cols if col in future_df.columns]
-            X_future = future_df[available_features]
-            
-            # Predict log returns
-            log_returns = pipe.predict(X_future)
-        
-        # Generate OHLC data
-        ohlc_data = generate_ohlc(
-            last_close=last_close,
-            log_returns=log_returns,
-            dates=future_df["date"],
-            base_vol=base_vol,
-            seed=seed
-        )
+            model_status = "ml_model"
         
         # Prepare response
         response = {
@@ -364,7 +392,7 @@ def simulate():
                 "end_date": future_df["date"].iloc[-1].strftime("%Y-%m-%d"),
                 "features_used": available_features,
                 "num_events_applied": len(events) if events else 0,
-                "model_status": "ml_model" if pipe else "synthetic_fallback"
+                "model_status": model_status
             },
             "ohlc_data": ohlc_data,
             "predicted_log_returns": log_returns.tolist(),
