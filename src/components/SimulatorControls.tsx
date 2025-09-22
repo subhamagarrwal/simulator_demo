@@ -183,7 +183,7 @@ export function SimulatorControls() {
   const simulation = useSimulation();
   const [showProfileDialog, setShowProfileDialog] = useState(true);
   const [companyProfile, setCompanyProfile] = useState<{companyName?: string; ticker?: string; size: string; sector: string} | null>(null);
-  const [controlMode, setControlMode] = useState<'TRAJECTORY' | 'HOLD' | 'MANUAL'>('HOLD');
+  const [controlMode, setControlMode] = useState<'TRAJECTORY' | 'HOLD'>('HOLD');
   
   const [marketEnvironment, setMarketEnvironment] = useState({
     sentiment: "neutral",
@@ -667,9 +667,9 @@ export function SimulatorControls() {
           <div className="text-xs text-muted-foreground p-2 bg-accent/30 rounded">
             ⚙️ Setup how market controls evolve during simulation
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 gap-3">
             <Button 
-              variant="outline"
+              variant={controlMode === 'TRAJECTORY' ? "default" : "outline"}
               size="sm"
               className="flex flex-col items-center space-y-1 h-auto p-3 text-xs"
               onClick={() => setControlMode('TRAJECTORY')}
@@ -684,7 +684,7 @@ export function SimulatorControls() {
             </Button>
             
             <Button 
-              variant="outline"
+              variant={controlMode === 'HOLD' ? "default" : "outline"}
               size="sm"
               className="flex flex-col items-center space-y-1 h-auto p-3 text-xs"
               onClick={() => setControlMode('HOLD')}
@@ -695,21 +695,6 @@ export function SimulatorControls() {
               </div>
               <div className="text-center text-xs leading-tight">
                 Constant environment
-              </div>
-            </Button>
-
-            <Button 
-              variant="outline"
-              size="sm"
-              className="flex flex-col items-center space-y-1 h-auto p-3 text-xs"
-              onClick={() => setControlMode('MANUAL')}
-            >
-              <div className="flex items-center space-x-1">
-                <Factory className="h-4 w-4" />
-                <span className="font-medium">MANUAL</span>
-              </div>
-              <div className="text-center text-xs leading-tight">
-                Custom control
               </div>
             </Button>
           </div>
@@ -739,130 +724,19 @@ export function SimulatorControls() {
           ? `🎯 Trigger ${selectedEventOption.replace('-', ' ').toUpperCase()} Event`
           : controlMode === 'TRAJECTORY' 
             ? '📈 Setup Trajectory Mode & Simulate' 
-            : controlMode === 'HOLD'
-            ? '🚀 Setup Hold Mode & Simulate Next Day'
-            : '⚙️ Setup Manual Mode & Simulate'
+            : '🚀 Setup Hold Mode & Simulate Next Day'
         }
       </Button>
       
       {/* Simulation Control Buttons */}
       {companyProfile && (
-        <div className="grid grid-cols-2 gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => simulation.isRunning ? simulation.stopSimulation() : simulation.startSimulation()}
-            className="w-full"
-          >
-            {simulation.isRunning ? 'Pause' : 'Auto Run'} (Day {simulation.currentDay})
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => simulation.resetSimulation()}
-            className="w-full"
-          >
-            Reset Simulation
-          </Button>
-        </div>
-      )}
-
-      {/* Results Section */}
-      {companyProfile && simulation.currentDay > 1 && (
-        <Card className="border-green-500/20 bg-green-50/5">
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center space-x-2 text-base">
-              <TrendingUp className="h-5 w-5 text-green-500" />
-              <span>📊 Check Results</span>
-              <Badge variant="secondary" className="ml-auto text-xs bg-green-100 text-green-700">
-                Day {simulation.currentDay}
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="text-xs text-muted-foreground p-2 bg-green-50/20 rounded border border-green-200/30">
-              🎯 View simulation outcomes with generated graphs and AI explanations
-            </div>
-            
-            {/* Result Categories */}
-            <div className="grid grid-cols-1 gap-3">
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="flex items-center justify-between p-3 h-auto text-left"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                    📈
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Price Movement Analysis</div>
-                    <div className="text-xs text-muted-foreground">Stock price trends and volatility patterns</div>
-                  </div>
-                </div>
-                <Badge variant="secondary" className="text-xs">Generated</Badge>
-              </Button>
-
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="flex items-center justify-between p-3 h-auto text-left"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                    🎪
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Market Impact Breakdown</div>
-                    <div className="text-xs text-muted-foreground">How each factor influenced the stock</div>
-                  </div>
-                </div>
-                <Badge variant="secondary" className="text-xs">AI Explained</Badge>
-              </Button>
-
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="flex items-center justify-between p-3 h-auto text-left"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                    🎯
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Event Impact Summary</div>
-                    <div className="text-xs text-muted-foreground">Timeline of triggered events and outcomes</div>
-                  </div>
-                </div>
-                <Badge variant="secondary" className="text-xs">Interactive</Badge>
-              </Button>
-
-              <Button 
-                variant="outline" 
-                size="sm"
-                className="flex items-center justify-between p-3 h-auto text-left"
-              >
-                <div className="flex items-center space-x-3">
-                  <div className="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
-                    ⚡
-                  </div>
-                  <div>
-                    <div className="text-sm font-medium">Risk & Volatility Report</div>
-                    <div className="text-xs text-muted-foreground">Risk metrics and volatility analysis</div>
-                  </div>
-                </div>
-                <Badge variant="secondary" className="text-xs">Live Data</Badge>
-              </Button>
-            </div>
-
-            {/* Results Action */}
-            <Button 
-              className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white"
-              size="lg"
-            >
-              <TrendingUp className="h-4 w-4 mr-2" />
-              📊 View Complete Results Dashboard
-            </Button>
-          </CardContent>
-        </Card>
+        <Button 
+          variant="outline" 
+          onClick={() => simulation.resetSimulation()}
+          className="w-full"
+        >
+          Reset Simulation
+        </Button>
       )}
       </div>
     </>
