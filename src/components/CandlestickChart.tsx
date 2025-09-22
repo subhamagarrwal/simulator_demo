@@ -4,9 +4,9 @@ import { useSimulation } from "../contexts/SimulationContext";
 import { Button } from "./ui/button";
 import { BarChart3, TrendingUp } from "lucide-react";
 
-const CustomLineChart = ({ data }: { data: any[] }) => {
+const CustomLineChart = ({ data, width, height }: { data: any[]; width?: number; height?: number }) => {
   // Add debugging
-  console.log('CustomLineChart data:', data);
+  console.log('CustomLineChart data:', data, 'width:', width, 'height:', height);
   
   if (!data || data.length === 0) {
     return (
@@ -66,23 +66,23 @@ const CustomLineChart = ({ data }: { data: any[] }) => {
 
   return (
     <LineChart 
-      data={data} 
+      data={data}
+      width={width || 800}
+      height={height || 400}
       margin={{ top: 20, right: 30, left: 20, bottom: 60 }}
-      width={800}
-      height={400}
     >
-      <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+      <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
       <XAxis 
         dataKey="time" 
         axisLine={false}
         tickLine={false}
-        tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
-        interval="preserveStartEnd"
+        tick={{ fontSize: 12, fill: '#6b7280' }}
+        interval={Math.max(Math.floor(data.length / 10), 1)}
       />
       <YAxis 
         axisLine={false}
         tickLine={false}
-        tick={{ fontSize: 12, fill: 'var(--muted-foreground)' }}
+        tick={{ fontSize: 12, fill: '#6b7280' }}
         tickFormatter={(value) => `₹${value.toFixed(0)}`}
         domain={['dataMin - 5', 'dataMax + 5']}
       />
