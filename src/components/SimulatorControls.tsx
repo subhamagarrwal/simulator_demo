@@ -8,6 +8,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "./ui/t
 import { Badge } from "./ui/badge";
 import { CompanyProfileDialog } from "./CompanyProfileDialog";
 import { StockOverview } from "./StockOverview";
+import { SimulationSummaryDialog, SimulationSummaryData } from "./SimulationSummaryDialog";
+import { SimulationResultsDialog } from "./SimulationResultsDialog";
 import { useSimulation } from "../contexts/SimulationContext";
 import { 
   Building2, 
@@ -26,7 +28,8 @@ import {
   CheckCircle,
   Play
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useEffect } from "react";
 
 // Enhanced slider component with impact information
 const MarketSlider = ({ 
@@ -182,29 +185,200 @@ const impactExplanations = {
 export function SimulatorControls() {
   const simulation = useSimulation();
   const [showProfileDialog, setShowProfileDialog] = useState(true);
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const [showResultsDialog, setShowResultsDialog] = useState(false);
+  const [currentSimulationInfo, setCurrentSimulationInfo] = useState<{
+    name?: string;
+    ticker?: string;
+    mode: string;
+    horizon: number;
+  } | null>(null);
   const [companyProfile, setCompanyProfile] = useState<{companyName?: string; ticker?: string; size: string; sector: string} | null>(null);
   const [controlMode, setControlMode] = useState<'TRAJECTORY' | 'HOLD'>('HOLD');
   
+  // Debug wrapper for setControlMode
+  const handleControlModeChange = (mode: 'TRAJECTORY' | 'HOLD') => {
+    console.log(`Changing control mode from ${controlMode} to ${mode}`);
+    setControlMode(mode);
+  };
+  
+  // Define neutral/default values based on backend constraints
+  const NEUTRAL_DEFAULTS = {
+    // Numeric controls with their neutral (middle) values
+    overall_market_sentiment: 0, // Range: -0.5295806094652642 to 0.5166648458286379
+    fii_flows: 0, // Range: -1798.114816925352 to 1707.8646737801212  
+    dii_flows: 0, // Range: -1580.3580671687012 to 1414.6913915950788
+    global_market_cues: 0, // Range: -0.7021572639830562 to 0.6776104425671782
+    inr_usd_delta: 0, // Range: -0.0123434874854614 to 0.0111704830210777
+    crude_oil_delta: 0, // Range: -0.0367144071644758 to 0.0429880748555434
+    earnings_announcement: 0.5, // Range: 0-1, neutral expectation
+    analyst_rating_change: 0, // Range: 0-1, no change
+    
+    // Categorical controls with neutral defaults
+    major_news: "none" as const,
+    insider_activity: "none" as const,
+    predefined_global_shock: "none" as const,
+  };
+
   const [marketEnvironment, setMarketEnvironment] = useState({
     sentiment: "neutral",
-    overall_market_sentiment: 0, // Range: -0.5295806094652642 to 0.5166648458286379
-    fii_flows: 0, // Range: -1798.114816925352 to 1707.8646737801212
-    dii_flows: 0, // Range: -1580.3580671687012 to 1414.6913915950788
+    overall_market_sentiment: NEUTRAL_DEFAULTS.overall_market_sentiment,
+    fii_flows: NEUTRAL_DEFAULTS.fii_flows,
+    dii_flows: NEUTRAL_DEFAULTS.dii_flows,
     globalCues: "neutral",
-    global_market_cues: 0, // Range: -0.7021572639830562 to 0.6776104425671782
+    global_market_cues: NEUTRAL_DEFAULTS.global_market_cues,
     exchangeRate: "stable",
-    inr_usd_delta: 0, // Range: -0.0123434874854614 to 0.0111704830210777
-    crude_oil_delta: 0 // Range: -0.0367144071644758 to 0.0429880748555434
+    inr_usd_delta: NEUTRAL_DEFAULTS.inr_usd_delta,
+    crude_oil_delta: NEUTRAL_DEFAULTS.crude_oil_delta
   });
-  
-  const [activeEvent, setActiveEvent] = useState<string | null>(null);
+
+  // State for categorical events (keeping existing structure)
+  const [activeEvents, setActiveEvents] = useState<Set<string>>(new Set());
   const [selectedEventOption, setSelectedEventOption] = useState<string | null>(null);
+  
+  // State to track what user has changed (for summary dialog)
+  const [changedControls, setChangedControls] = useState<Record<string, any>>({});
+
+  // Track changes from neutral values
+  const handleControlChange = (controlName: string, value: any) => {
+    const newChangedControls = { ...changedControls };
+    
+    if (NEUTRAL_DEFAULTS.hasOwnProperty(controlName)) {
+      const neutralValue = (NEUTRAL_DEFAULTS as any)[controlName];
+      if (value === neutralValue) {
+        // If value is back to neutral, remove from changed controls
+        delete newChangedControls[controlName];
+      } else {
+        // Track the change
+        newChangedControls[controlName] = value;
+      }
+      setChangedControls(newChangedControls);
+    }
+  };
+
+  // Watch for simulation completion
+  useEffect(() => {
+    if (simulation.simulationResults && !simulation.isSimulating && currentSimulationInfo) {
+      setShowSummaryDialog(false);
+      setShowResultsDialog(true);
+    }
+  }, [simulation.simulationResults, simulation.isSimulating, currentSimulationInfo]);
+
+  // Helper function to handle event switching
+  const handleEventSwitch = (eventType: string) => {
+    setActiveEvents(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(eventType)) {
+        // Remove event if already active
+        newSet.delete(eventType);
+        
+        // Reset the corresponding control to neutral
+        if (eventType === 'earnings') {
+          handleControlChange('earnings_announcement', NEUTRAL_DEFAULTS.earnings_announcement);
+        } else if (eventType === 'analyst') {
+          handleControlChange('analyst_rating_change', NEUTRAL_DEFAULTS.analyst_rating_change);
+        } else if (eventType === 'news') {
+          handleControlChange('major_news', NEUTRAL_DEFAULTS.major_news);
+        } else if (eventType === 'insider') {
+          handleControlChange('insider_activity', NEUTRAL_DEFAULTS.insider_activity);
+        } else if (eventType === 'shock') {
+          handleControlChange('predefined_global_shock', NEUTRAL_DEFAULTS.predefined_global_shock);
+        }
+        setSelectedEventOption(null);
+      } else {
+        // Add event if not active
+        newSet.add(eventType);
+      }
+      
+      return newSet;
+    });
+  };
+
+  // Reset all controls to neutral
+  const resetToNeutral = () => {
+    setMarketEnvironment({
+      sentiment: "neutral",
+      overall_market_sentiment: NEUTRAL_DEFAULTS.overall_market_sentiment,
+      fii_flows: NEUTRAL_DEFAULTS.fii_flows,
+      dii_flows: NEUTRAL_DEFAULTS.dii_flows,
+      globalCues: "neutral",
+      global_market_cues: NEUTRAL_DEFAULTS.global_market_cues,
+      exchangeRate: "stable",
+      inr_usd_delta: NEUTRAL_DEFAULTS.inr_usd_delta,
+      crude_oil_delta: NEUTRAL_DEFAULTS.crude_oil_delta
+    });
+    setActiveEvents(new Set());
+    setSelectedEventOption(null);
+    setChangedControls({});
+  };
+
+  // Prepare simulation summary data
+  const prepareSimulationData = (): SimulationSummaryData => {
+    const summaryData: SimulationSummaryData = {
+      companyProfile: companyProfile || { size: 'mid-cap', sector: 'technology' },
+      mode: controlMode,
+      changedControls: { ...changedControls },
+      selectedEvents: {
+        activeEvents: Array.from(activeEvents),
+        eventOption: selectedEventOption || undefined,
+      }
+    };
+
+    // The changedControls already contains all the tracked changes from event handlers
+    // No need for additional mapping here since it's done in real-time
+
+    return summaryData;
+  };
+
+  // Handle simulation confirmation
+  const handleSimulationConfirm = async (horizon: number) => {
+    if (!companyProfile) return;
+    
+    const summaryData = prepareSimulationData();
+    console.log('Running simulation with data:', summaryData);
+    
+    // Convert frontend data to backend format
+    const controls = {
+      overall_market_sentiment: marketEnvironment.overall_market_sentiment,
+      fii_flows: marketEnvironment.fii_flows,
+      dii_flows: marketEnvironment.dii_flows,
+      global_market_cues: marketEnvironment.global_market_cues,
+      inr_usd_delta: marketEnvironment.inr_usd_delta,
+      crude_oil_delta: marketEnvironment.crude_oil_delta,
+      earnings_announcement: summaryData.changedControls.earnings_announcement || NEUTRAL_DEFAULTS.earnings_announcement,
+      analyst_rating_change: summaryData.changedControls.analyst_rating_change || NEUTRAL_DEFAULTS.analyst_rating_change,
+      major_news: summaryData.changedControls.major_news || NEUTRAL_DEFAULTS.major_news,
+      insider_activity: summaryData.changedControls.insider_activity || NEUTRAL_DEFAULTS.insider_activity,
+      predefined_global_shock: summaryData.changedControls.predefined_global_shock || NEUTRAL_DEFAULTS.predefined_global_shock,
+    };
+
+    try {
+      // Set simulation info for results display
+      setCurrentSimulationInfo({
+        name: companyProfile.companyName,
+        ticker: companyProfile.ticker,
+        mode: controlMode,
+        horizon: horizon
+      });
+      
+      await simulation.runBackendSimulation(
+        controls,
+        horizon,
+        controlMode.toLowerCase() as 'hold' | 'trajectory'
+      );
+      // Note: Results dialog will open automatically via useEffect when simulation completes
+    } catch (error) {
+      console.error('Simulation failed:', error);
+      setCurrentSimulationInfo(null); // Clear info on error
+      // Error handling will be managed by the context
+    }
+  };
 
   const handleProfileSet = (profile: {companyName?: string; ticker?: string; size: string; sector: string}) => {
     console.log('SimulatorControls handleProfileSet received:', profile);
     setCompanyProfile(profile);
     setShowProfileDialog(false);
-    simulation.initializeSimulation(profile);
+    simulation.initializeSession(profile);
   };
 
   // Update market conditions in simulation when they change
@@ -255,10 +429,54 @@ export function SimulatorControls() {
         onProfileSet={handleProfileSet}
       />
       
+      <SimulationSummaryDialog
+        open={showSummaryDialog}
+        data={prepareSimulationData()}
+        onClose={() => setShowSummaryDialog(false)}
+        onConfirm={handleSimulationConfirm}
+        isLoading={simulation.isSimulating}
+      />
+      
+      <SimulationResultsDialog
+        open={showResultsDialog}
+        onClose={() => {
+          setShowResultsDialog(false);
+          setCurrentSimulationInfo(null);
+        }}
+        data={simulation.simulationResults}
+        isLoading={simulation.isSimulating}
+        error={simulation.simulationError}
+        companyInfo={currentSimulationInfo || undefined}
+      />
+      
       <div className="space-y-6">
         {/* Stock Overview - Shows after profile is set */}
         {companyProfile && (
           <StockOverview profile={companyProfile} />
+        )}
+
+        {/* Changed Controls Indicator */}
+        {Object.keys(changedControls).length > 0 && (
+          <Card className="border-yellow-500/20 bg-yellow-50/10">
+            <CardContent className="pt-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Info className="h-4 w-4 text-yellow-500" />
+                  <span className="text-sm font-medium">
+                    {Object.keys(changedControls).length} control{Object.keys(changedControls).length !== 1 ? 's' : ''} modified from neutral
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={resetToNeutral}
+                  className="text-xs"
+                >
+                  Reset to Neutral
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {/* Daily Market Environment */}
@@ -274,7 +492,10 @@ export function SimulatorControls() {
           {/* Market Sentiment Slider */}
           <MarketSlider
             value={marketEnvironment.overall_market_sentiment}
-            onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, overall_market_sentiment: value }))}
+            onValueChange={(value) => {
+              setMarketEnvironment(prev => ({ ...prev, overall_market_sentiment: value }));
+              handleControlChange('overall_market_sentiment', value);
+            }}
             min={-0.5295806094652642}
             max={0.5166648458286379}
             step={0.01}
@@ -287,7 +508,10 @@ export function SimulatorControls() {
           {/* FII Flows */}
           <MarketSlider
             value={marketEnvironment.fii_flows}
-            onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, fii_flows: value }))}
+            onValueChange={(value) => {
+              setMarketEnvironment(prev => ({ ...prev, fii_flows: value }));
+              handleControlChange('fii_flows', value);
+            }}
             min={-1798.114816925352}
             max={1707.8646737801212}
             step={10}
@@ -301,7 +525,10 @@ export function SimulatorControls() {
           {/* DII Flows */}
           <MarketSlider
             value={marketEnvironment.dii_flows}
-            onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, dii_flows: value }))}
+            onValueChange={(value) => {
+              setMarketEnvironment(prev => ({ ...prev, dii_flows: value }));
+              handleControlChange('dii_flows', value);
+            }}
             min={-1580.3580671687012}
             max={1414.6913915950788}
             step={10}
@@ -315,7 +542,10 @@ export function SimulatorControls() {
           {/* Global Market Cues Slider */}
           <MarketSlider
             value={marketEnvironment.global_market_cues}
-            onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, global_market_cues: value }))}
+            onValueChange={(value) => {
+              setMarketEnvironment(prev => ({ ...prev, global_market_cues: value }));
+              handleControlChange('global_market_cues', value);
+            }}
             min={-0.7021572639830562}
             max={0.6776104425671782}
             step={0.01}
@@ -328,7 +558,10 @@ export function SimulatorControls() {
           {/* INR-USD Exchange Delta */}
           <MarketSlider
             value={marketEnvironment.inr_usd_delta}
-            onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, inr_usd_delta: value }))}
+            onValueChange={(value) => {
+              setMarketEnvironment(prev => ({ ...prev, inr_usd_delta: value }));
+              handleControlChange('inr_usd_delta', value);
+            }}
             min={-0.0123434874854614}
             max={0.0111704830210777}
             step={0.001}
@@ -341,7 +574,10 @@ export function SimulatorControls() {
           {/* Crude Oil Delta */}
           <MarketSlider
             value={marketEnvironment.crude_oil_delta}
-            onValueChange={(value) => setMarketEnvironment(prev => ({ ...prev, crude_oil_delta: value }))}
+            onValueChange={(value) => {
+              setMarketEnvironment(prev => ({ ...prev, crude_oil_delta: value }));
+              handleControlChange('crude_oil_delta', value);
+            }}
             min={-0.0367144071644758}
             max={0.0429880748555434}
             step={0.001}
@@ -369,36 +605,36 @@ export function SimulatorControls() {
           
           <div className="grid grid-cols-2 gap-2">
             <Button 
-              variant={activeEvent === "earnings" ? "default" : "outline"} 
+              variant={activeEvents.has("earnings") ? "default" : "outline"} 
               size="sm" 
-              onClick={() => setActiveEvent(activeEvent === "earnings" ? null : "earnings")}
+              onClick={() => handleEventSwitch("earnings")}
               className="text-xs"
             >
               <FileText className="h-3 w-3 mr-1" />
               Earnings
             </Button>
             <Button 
-              variant={activeEvent === "analyst" ? "default" : "outline"} 
+              variant={activeEvents.has("analyst") ? "default" : "outline"} 
               size="sm"
-              onClick={() => setActiveEvent(activeEvent === "analyst" ? null : "analyst")}
+              onClick={() => handleEventSwitch("analyst")}
               className="text-xs"
             >
               <Star className="h-3 w-3 mr-1" />
               Analyst
             </Button>
             <Button 
-              variant={activeEvent === "news" ? "default" : "outline"} 
+              variant={activeEvents.has("news") ? "default" : "outline"} 
               size="sm" 
-              onClick={() => setActiveEvent(activeEvent === "news" ? null : "news")}
+              onClick={() => handleEventSwitch("news")}
               className="text-xs"
             >
               <Megaphone className="h-3 w-3 mr-1" />
               News
             </Button>
             <Button 
-              variant={activeEvent === "insider" ? "default" : "outline"} 
+              variant={activeEvents.has("insider") ? "default" : "outline"} 
               size="sm"
-              onClick={() => setActiveEvent(activeEvent === "insider" ? null : "insider")}
+              onClick={() => handleEventSwitch("insider")}
               className="text-xs"
             >
               <Users className="h-3 w-3 mr-1" />
@@ -407,16 +643,16 @@ export function SimulatorControls() {
           </div>
           
           <Button 
-            variant={activeEvent === "shock" ? "destructive" : "outline"} 
+            variant={activeEvents.has("shock") ? "destructive" : "outline"} 
             size="sm" 
-            onClick={() => setActiveEvent(activeEvent === "shock" ? null : "shock")}
+            onClick={() => handleEventSwitch("shock")}
             className="w-full text-xs"
           >
             <AlertTriangle className="h-3 w-3 mr-1" />
             🌍 Global Shock Event
           </Button>
 
-          {activeEvent === "earnings" && (
+          {activeEvents.has("earnings") && (
             <div className="space-y-2 p-3 bg-accent/20 rounded-lg">
               <Label className="flex items-center text-xs">
                 📊 Earnings Announcement
@@ -424,18 +660,27 @@ export function SimulatorControls() {
               </Label>
               <div className="grid grid-cols-1 gap-1">
                 {[
-                  { key: "sig-beat", label: "🚀 Significant Beat (0.9)", impact: "Stock surge +8-15%, High volume, Bullish momentum", value: 0.9 },
-                  { key: "slight-beat", label: "📈 Slight Beat (0.7)", impact: "Moderate gain +3-7%, Positive sentiment", value: 0.7 },
-                  { key: "meets", label: "➖ Meets Expectations (0.5)", impact: "Neutral reaction ±2%, Normal trading", value: 0.5 },
-                  { key: "slight-miss", label: "📉 Slight Miss (0.3)", impact: "Price decline -3-7%, Disappointment", value: 0.3 },
-                  { key: "sig-miss", label: "💥 Significant Miss (0.1)", impact: "Major drop -8-15%, Panic selling", value: 0.1 }
+                  { key: "sig-beat", label: "🚀 Significant Beat (0.9)", impact: "Strong stock surge, high volume, bullish momentum", value: 0.9 },
+                  { key: "slight-beat", label: "📈 Slight Beat (0.7)", impact: "Moderate gain, positive market sentiment", value: 0.7 },
+                  { key: "meets", label: "➖ Meets Expectations (0.5)", impact: "Neutral market reaction, normal trading volume", value: 0.5 },
+                  { key: "slight-miss", label: "📉 Slight Miss (0.3)", impact: "Price decline, investor disappointment", value: 0.3 },
+                  { key: "sig-miss", label: "💥 Significant Miss (0.1)", impact: "Major drop, potential panic selling", value: 0.1 }
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
                       variant={selectedEventOption === option.key ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
-                      onClick={() => setSelectedEventOption(selectedEventOption === option.key ? null : option.key)}
+                      onClick={() => {
+                        const newValue = selectedEventOption === option.key ? null : option.key;
+                        setSelectedEventOption(newValue);
+                        // Track this change
+                        if (newValue) {
+                          handleControlChange('earnings_announcement', option.value);
+                        } else {
+                          handleControlChange('earnings_announcement', NEUTRAL_DEFAULTS.earnings_announcement);
+                        }
+                      }}
                     >
                       <span className="flex justify-between w-full">
                         <span>{option.label}</span>
@@ -457,7 +702,7 @@ export function SimulatorControls() {
             </div>
           )}
 
-          {activeEvent === "analyst" && (
+          {activeEvents.has("analyst") && (
             <div className="space-y-2 p-3 bg-accent/20 rounded-lg">
               <Label className="flex items-center text-xs">
                 ⭐ Analyst Rating Change
@@ -465,17 +710,27 @@ export function SimulatorControls() {
               </Label>
               <div className="grid grid-cols-1 gap-1">
                 {[
-                  { key: "major-upgrade", label: "🌟 Major Upgrade (+1.8)", impact: "Strong rally +5-12%, Institutional buying", value: 1.8 },
-                  { key: "upgrade", label: "⬆️ Upgrade (+0.8)", impact: "Price boost +2-6%, Positive momentum", value: 0.8 },
-                  { key: "downgrade", label: "⬇️ Downgrade (-0.8)", impact: "Price pressure -2-6%, Selling interest", value: -0.8 },
-                  { key: "major-downgrade", label: "💀 Major Downgrade (-1.8)", impact: "Sharp fall -5-12%, Heavy selling", value: -1.8 }
+                  { key: "major-upgrade", label: "🌟 Major Upgrade (+1.8)", impact: "Strong rally, significant institutional buying interest", value: 1.8 },
+                  { key: "upgrade", label: "⬆️ Upgrade (+0.8)", impact: "Price boost, positive market momentum", value: 0.8 },
+                  { key: "downgrade", label: "⬇️ Downgrade (-0.8)", impact: "Price pressure, increased selling interest", value: -0.8 },
+                  { key: "major-downgrade", label: "💀 Major Downgrade (-1.8)", impact: "Sharp decline, heavy selling pressure", value: -1.8 }
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
                       variant={selectedEventOption === option.key ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
-                      onClick={() => setSelectedEventOption(selectedEventOption === option.key ? null : option.key)}
+                      onClick={() => {
+                        const newValue = selectedEventOption === option.key ? null : option.key;
+                        setSelectedEventOption(newValue);
+                        // Track this change - convert to 0-1 range for backend
+                        if (newValue) {
+                          const backendValue = (option.value + 2) / 4; // Convert -2 to +2 range to 0-1
+                          handleControlChange('analyst_rating_change', backendValue);
+                        } else {
+                          handleControlChange('analyst_rating_change', NEUTRAL_DEFAULTS.analyst_rating_change);
+                        }
+                      }}
                     >
                       <span className="flex justify-between w-full">
                         <span>{option.label}</span>
@@ -502,7 +757,7 @@ export function SimulatorControls() {
             </div>
           )}
 
-          {activeEvent === "news" && (
+          {activeEvents.has("news") && (
             <div className="space-y-2 p-3 bg-accent/20 rounded-lg">
               <Label className="flex items-center text-xs">
                 📢 Major News Announcement
@@ -510,17 +765,27 @@ export function SimulatorControls() {
               </Label>
               <div className="grid grid-cols-1 gap-1">
                 {[
-                  { key: "contract-win", label: "🏆 Major Contract Win", impact: "Rally +4-10%, Growth prospects boost", type: "POSITIVE" },
-                  { key: "product-launch", label: "🚀 New Product Launch", impact: "Innovation premium +2-8%, Future potential", type: "POSITIVE" },
-                  { key: "ceo-resigns", label: "😱 CEO Resigns", impact: "Uncertainty decline -3-8%, Leadership concerns", type: "NEGATIVE" },
-                  { key: "regulatory-fine", label: "⚖️ Regulatory Fine", impact: "Compliance hit -2-6%, Reputation damage", type: "NEGATIVE" }
+                  { key: "contract-win", label: "🏆 Major Contract Win", impact: "Market rally, significant growth prospects boost", type: "POSITIVE" },
+                  { key: "product-launch", label: "🚀 New Product Launch", impact: "Innovation premium, enhanced future growth potential", type: "POSITIVE" },
+                  { key: "ceo-resigns", label: "😱 CEO Resigns", impact: "Uncertainty-driven decline, leadership transition concerns", type: "NEGATIVE" },
+                  { key: "regulatory-fine", label: "⚖️ Regulatory Fine", impact: "Compliance impact, reputation and operational concerns", type: "NEGATIVE" }
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
                       variant={selectedEventOption === option.key ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
-                      onClick={() => setSelectedEventOption(selectedEventOption === option.key ? null : option.key)}
+                      onClick={() => {
+                        const newValue = selectedEventOption === option.key ? null : option.key;
+                        setSelectedEventOption(newValue);
+                        // Track this change
+                        if (newValue) {
+                          const newsType = option.type === 'POSITIVE' ? 'positive' : 'negative';
+                          handleControlChange('major_news', newsType);
+                        } else {
+                          handleControlChange('major_news', NEUTRAL_DEFAULTS.major_news);
+                        }
+                      }}
                     >
                       <span className="flex justify-between w-full items-center">
                         <span>{option.label}</span>
@@ -559,7 +824,7 @@ export function SimulatorControls() {
             </div>
           )}
 
-          {activeEvent === "insider" && (
+          {activeEvents.has("insider") && (
             <div className="space-y-2 p-3 bg-accent/20 rounded-lg">
               <Label className="flex items-center text-xs">
                 👥 Insider Activity Report
@@ -571,14 +836,14 @@ export function SimulatorControls() {
                     key: "promoter-buying", 
                     label: "💰 Heavy Promoter Buying", 
                     buttonText: "Buy",
-                    impact: "Confidence signal +3-8%, Bullish sentiment",
+                    impact: "Strong confidence signal, increased bullish market sentiment",
                     type: "POSITIVE"
                   },
                   { 
                     key: "promoter-selling", 
                     label: "📤 Heavy Promoter Selling", 
                     buttonText: "Sell",
-                    impact: "Concern signal -3-8%, Bearish sentiment",
+                    impact: "Concern signal, heightened bearish market sentiment",
                     type: "NEGATIVE"
                   }
                 ].map((option) => (
@@ -587,7 +852,17 @@ export function SimulatorControls() {
                       variant={selectedEventOption === option.key ? "default" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
-                      onClick={() => setSelectedEventOption(selectedEventOption === option.key ? null : option.key)}
+                      onClick={() => {
+                        const newValue = selectedEventOption === option.key ? null : option.key;
+                        setSelectedEventOption(newValue);
+                        // Track this change
+                        if (newValue) {
+                          const activityType = option.type === 'POSITIVE' ? 'buy' : 'sell';
+                          handleControlChange('insider_activity', activityType);
+                        } else {
+                          handleControlChange('insider_activity', NEUTRAL_DEFAULTS.insider_activity);
+                        }
+                      }}
                     >
                       <div className="flex items-center justify-between w-full">
                         <span>{option.label}</span>
@@ -620,7 +895,7 @@ export function SimulatorControls() {
             </div>
           )}
 
-          {activeEvent === "shock" && (
+          {activeEvents.has("shock") && (
             <div className="space-y-2 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
               <Label className="flex items-center text-xs text-destructive">
                 🌍 Global Shock Events
@@ -628,16 +903,27 @@ export function SimulatorControls() {
               </Label>
               <div className="grid grid-cols-1 gap-1">
                 {[
-                  { key: "financial-crisis", label: "💸 Financial Crisis", impact: "Market crash -15-30%, Panic selling, Flight to safety" },
-                  { key: "geopolitical", label: "⚔️ Geopolitical Conflict", impact: "Risk-off sentiment -10-25%, Volatility spike" },
-                  { key: "pandemic", label: "🦠 Pandemic News", impact: "Economic shutdown fears -20-35%, Sector rotation" }
+                  { key: "geopolitical", label: "⚔️ Geopolitical Event", impact: "Risk-off sentiment, increased volatility and uncertainty", backend: "geo_political" },
+                  { key: "pandemic", label: "🦠 Pandemic Wave", impact: "Economic shutdown concerns, sector rotation to defensive assets", backend: "pandemic_wave" },
+                  { key: "inflation", label: "📈 Inflation Shock", impact: "Rising input costs pressure, commodity price surge effects", backend: "commodity_spike" },
+                  { key: "budget-news", label: "📊 Sudden News (Budget)", impact: "Policy uncertainty, market volatility from unexpected announcements", backend: "policy_rate_shock" },
+                  { key: "credit-event", label: "🏦 Credit Market Event", impact: "Liquidity concerns, credit spread widening and funding stress", backend: "credit_event" }
                 ].map((option) => (
                   <div key={option.key}>
                     <Button 
                       variant={selectedEventOption === option.key ? "destructive" : "outline"} 
                       size="sm" 
                       className="w-full text-xs justify-start"
-                      onClick={() => setSelectedEventOption(selectedEventOption === option.key ? null : option.key)}
+                      onClick={() => {
+                        const newValue = selectedEventOption === option.key ? null : option.key;
+                        setSelectedEventOption(newValue);
+                        // Track this change
+                        if (newValue) {
+                          handleControlChange('predefined_global_shock', option.backend);
+                        } else {
+                          handleControlChange('predefined_global_shock', NEUTRAL_DEFAULTS.predefined_global_shock);
+                        }
+                      }}
                     >
                       {option.label}
                     </Button>
@@ -660,43 +946,118 @@ export function SimulatorControls() {
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center space-x-2 text-base">
             <Briefcase className="h-5 w-5 text-purple-500" />
-            <span>Control Mode</span>
+            <span>Simulation Mode</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="text-xs text-muted-foreground p-2 bg-accent/30 rounded">
-            ⚙️ Setup how market controls evolve during simulation
+        <CardContent className="space-y-4">
+          <div className="text-xs text-muted-foreground p-3 bg-accent/20 rounded-lg">
+            <Info className="inline h-3 w-3 mr-1 text-primary" />
+            Choose how market conditions behave during your simulation period.
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Button 
-              variant={controlMode === 'TRAJECTORY' ? "default" : "outline"}
-              size="sm"
-              className="flex flex-col items-center space-y-1 h-auto p-3 text-xs"
-              onClick={() => setControlMode('TRAJECTORY')}
-            >
-              <div className="flex items-center space-x-1">
-                <TrendingUp className="h-4 w-4" />
-                <span className="font-medium">TRAJECTORY</span>
+          
+          <div className="grid grid-cols-1 gap-4">
+            {/* HOLD Mode */}
+            <div className={`border rounded-lg p-3 cursor-pointer transition-all ${
+              controlMode === 'HOLD' 
+                ? 'border-green-500 bg-green-50/20 ring-2 ring-green-200' 
+                : 'border-border hover:border-green-300'
+            }`}
+            onClick={() => {
+              console.log('HOLD clicked');
+              handleControlModeChange('HOLD');
+            }}>
+              <div className="flex items-start space-x-3">
+                <div className={`p-2 rounded-full ${
+                  controlMode === 'HOLD' ? 'bg-green-500 text-white' : 'bg-muted'
+                }`}>
+                  <CheckCircle className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="font-semibold text-sm">HOLD Mode</span>
+                    <Badge variant={controlMode === 'HOLD' ? 'default' : 'outline'} className="text-xs">
+                      Recommended
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Set constant market conditions for the entire simulation period.
+                  </p>
+                  <div className="text-xs bg-accent/30 p-2 rounded">
+                    <div className="font-medium mb-1">Best for:</div>
+                    <ul className="text-muted-foreground space-y-0.5">
+                      <li>• Testing specific market scenarios</li>
+                      <li>• Understanding impact of single events</li>
+                      <li>• Stable environment analysis</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
-              <div className="text-center text-xs text-muted-foreground leading-tight">
-                Time-varying controls
+            </div>
+
+            {/* TRAJECTORY Mode */}
+            <div className={`border rounded-lg p-3 cursor-pointer transition-all ${
+              controlMode === 'TRAJECTORY' 
+                ? 'border-blue-500 bg-blue-50/20 ring-2 ring-blue-200' 
+                : 'border-border hover:border-blue-300'
+            }`}
+            onClick={() => {
+              console.log('TRAJECTORY clicked');
+              handleControlModeChange('TRAJECTORY');
+            }}>
+              <div className="flex items-start space-x-3">
+                <div className={`p-2 rounded-full ${
+                  controlMode === 'TRAJECTORY' ? 'bg-blue-500 text-white' : 'bg-muted'
+                }`}>
+                  <TrendingUp className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center space-x-2 mb-1">
+                    <span className="font-semibold text-sm">TRAJECTORY Mode</span>
+                    <Badge variant="secondary" className="text-xs">Advanced</Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Create time-varying market conditions with dynamic changes over time.
+                  </p>
+                  <div className="text-xs bg-accent/30 p-2 rounded">
+                    <div className="font-medium mb-1">Best for:</div>
+                    <ul className="text-muted-foreground space-y-0.5">
+                      <li>• Complex market evolution scenarios</li>
+                      <li>• Simulating gradual changes</li>
+                      <li>• Advanced strategy testing</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
-            </Button>
+            </div>
+          </div>
+
+          {/* Mode specific explanation */}
+          <div className="p-3 bg-accent/10 rounded-lg">
+            {controlMode === 'HOLD' && (
+              <div className="flex items-start space-x-2">
+                <CheckCircle className="h-4 w-4 text-green-500 mt-0.5" />
+                <div className="text-xs">
+                  <div className="font-medium text-green-700 mb-1">HOLD Mode Selected</div>
+                  <div className="text-muted-foreground">
+                    Your current control settings will remain constant throughout the entire simulation period. 
+                    This provides predictable conditions for analysis.
+                  </div>
+                </div>
+              </div>
+            )}
             
-            <Button 
-              variant={controlMode === 'HOLD' ? "default" : "outline"}
-              size="sm"
-              className="flex flex-col items-center space-y-1 h-auto p-3 text-xs"
-              onClick={() => setControlMode('HOLD')}
-            >
-              <div className="flex items-center space-x-1">
-                <CheckCircle className="h-4 w-4" />
-                <span className="font-medium">HOLD</span>
+            {controlMode === 'TRAJECTORY' && (
+              <div className="flex items-start space-x-2">
+                <TrendingUp className="h-4 w-4 text-blue-500 mt-0.5" />
+                <div className="text-xs">
+                  <div className="font-medium text-blue-700 mb-1">TRAJECTORY Mode Selected</div>
+                  <div className="text-muted-foreground">
+                    Market conditions will evolve over time based on generated trajectories. 
+                    This creates more realistic but complex market scenarios.
+                  </div>
+                </div>
               </div>
-              <div className="text-center text-xs leading-tight">
-                Constant environment
-              </div>
-            </Button>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -706,37 +1067,60 @@ export function SimulatorControls() {
         className="w-full bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700 text-white" 
         size="lg"
         onClick={() => {
-          if (selectedEventOption && activeEvent) {
-            simulation.triggerEvent({
-              type: activeEvent as any,
-              subtype: selectedEventOption,
-              impact: 1.0
-            });
-            setSelectedEventOption(null);
-            setActiveEvent(null);
-          } else {
-            simulation.simulateNextDay();
+          if (!companyProfile) {
+            setShowProfileDialog(true);
+            return;
           }
+          setShowSummaryDialog(true);
         }}
+        disabled={!companyProfile}
       >
         <Play className="h-4 w-4 mr-2" />
-        {selectedEventOption && activeEvent 
-          ? `🎯 Trigger ${selectedEventOption.replace('-', ' ').toUpperCase()} Event`
+        {!companyProfile 
+          ? 'Set Company Profile First'
           : controlMode === 'TRAJECTORY' 
-            ? '📈 Setup Trajectory Mode & Simulate' 
-            : '🚀 Setup Hold Mode & Simulate Next Day'
+            ? 'Setup & Run Trajectory Simulation' 
+            : 'Setup & Run HOLD Simulation'
         }
       </Button>
       
       {/* Simulation Control Buttons */}
       {companyProfile && (
-        <Button 
-          variant="outline" 
-          onClick={() => simulation.resetSimulation()}
-          className="w-full"
-        >
-          Reset Simulation
-        </Button>
+        <div className="grid grid-cols-1 gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => simulation.resetSimulation()}
+            className="w-full"
+          >
+            Reset Legacy Simulation
+          </Button>
+          
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              if (selectedEventOption && activeEvents.size > 0) {
+                // Trigger events for all active event types
+                activeEvents.forEach(eventType => {
+                  simulation.triggerEvent({
+                    type: eventType as any,
+                    subtype: selectedEventOption,
+                    impact: 1.0
+                  });
+                });
+                setSelectedEventOption(null);
+                setActiveEvents(new Set());
+              } else {
+                simulation.simulateNextDay();
+              }
+            }}
+            className="w-full text-xs"
+          >
+            {selectedEventOption && activeEvents.size > 0
+              ? `🎯 Trigger ${selectedEventOption.replace('-', ' ').toUpperCase()} Event (Legacy)`
+              : 'Simulate Next Day (Legacy Mode)'
+            }
+          </Button>
+        </div>
       )}
       </div>
     </>

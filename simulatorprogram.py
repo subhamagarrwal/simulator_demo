@@ -205,6 +205,62 @@ def get_base_volatility(market_cap_bucket: str) -> float:
     }
     return vol_map.get(market_cap_bucket, 0.015)
 
+def generate_synthetic_returns(future_df: pd.DataFrame, controls: Dict, events: List, base_vol: float, seed: Optional[int] = None) -> np.ndarray:
+    """
+    Generate synthetic log returns based on events and controls when ML model is unavailable.
+    This provides realistic-looking data for testing the frontend integration.
+    """
+    if seed is not None:
+        np.random.seed(seed)
+    
+    n = len(future_df)
+    log_returns = np.random.normal(0, base_vol, n)  # Base random walk
+    
+    # Apply event impacts
+    for i, row in future_df.iterrows():
+        # Earnings impact
+        if 'earnings_announcement' in row and row['earnings_announcement'] != 0:
+            impact = row['earnings_announcement'] * 0.05  # Scale earnings impact
+            log_returns[i] += impact
+        
+        # Analyst rating impact  
+        if 'analyst_rating_change' in row and row['analyst_rating_change'] != 0:
+            impact = row['analyst_rating_change'] * 0.03  # Scale analyst impact
+            log_returns[i] += impact
+            
+        # Global shock impact
+        if 'predefined_global_shock' in row and row['predefined_global_shock'] != 'none':
+            shock_impacts = {
+                'geo_political': -0.04,
+                'pandemic_wave': -0.06, 
+                'commodity_spike': -0.03,
+                'policy_rate_shock': -0.02,
+                'credit_event': -0.05
+            }
+            impact = shock_impacts.get(row['predefined_global_shock'], 0)
+            log_returns[i] += impact
+            
+        # Major news impact
+        if 'major_news' in row and row['major_news'] != 'none':
+            if row['major_news'] in ['contract-win', 'product-launch']:
+                log_returns[i] += 0.025  # Positive news
+            else:
+                log_returns[i] -= 0.025  # Negative news
+                
+        # Insider activity impact
+        if 'insider_activity' in row and row['insider_activity'] != 'none':
+            if row['insider_activity'] == 'promoter-buying':
+                log_returns[i] += 0.02
+            else:
+                log_returns[i] -= 0.02
+                
+        # Market sentiment impact
+        if 'overall_market_sentiment' in row:
+            sentiment_impact = (row['overall_market_sentiment'] - 0.5) * 0.02
+            log_returns[i] += sentiment_impact
+    
+    return log_returns
+
 @app.route('/simulate', methods=['POST'])
 def simulate():
     """
@@ -212,9 +268,6 @@ def simulate():
     Accepts JSON payload and returns OHLC data with predictions.
     """
     try:
-        if pipe is None:
-            return jsonify({"error": "Model not loaded"}), 500
-        
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data provided"}), 400
@@ -263,22 +316,30 @@ def simulate():
             events=events
         )
         
-        # Prepare features for prediction
-        # Assuming the model expects specific columns - adjust as needed
-        feature_cols = [
-            "overall_market_sentiment", "fii_flows", "dii_flows", 
-            "global_market_cues", "inr_usd_delta", "crude_oil_delta",
-            "earnings_announcement", "analyst_rating_change",
-            "sector", "market_cap_bucket", "major_news", 
-            "insider_activity", "predefined_global_shock"
-        ]
-        
-        # Select features that exist in the dataframe
-        available_features = [col for col in feature_cols if col in future_df.columns]
-        X_future = future_df[available_features]
-        
-        # Predict log returns
-        log_returns = pipe.predict(X_future)
+        # Check if model is available
+        if pipe is None:
+            print("⚠️  Model not loaded - using synthetic data generation")
+            # Generate synthetic log returns based on events and controls
+            log_returns = generate_synthetic_returns(future_df, controls, events, base_vol, seed)
+            available_features = ["synthetic_generation"]
+        else:
+            # Use the actual ML model for predictions
+            # Prepare features for prediction
+            # Assuming the model expects specific columns - adjust as needed
+            feature_cols = [
+                "overall_market_sentiment", "fii_flows", "dii_flows", 
+                "global_market_cues", "inr_usd_delta", "crude_oil_delta",
+                "earnings_announcement", "analyst_rating_change",
+                "sector", "market_cap_bucket", "major_news", 
+                "insider_activity", "predefined_global_shock"
+            ]
+            
+            # Select features that exist in the dataframe
+            available_features = [col for col in feature_cols if col in future_df.columns]
+            X_future = future_df[available_features]
+            
+            # Predict log returns
+            log_returns = pipe.predict(X_future)
         
         # Generate OHLC data
         ohlc_data = generate_ohlc(
@@ -302,7 +363,8 @@ def simulate():
                 "start_date": start_date,
                 "end_date": future_df["date"].iloc[-1].strftime("%Y-%m-%d"),
                 "features_used": available_features,
-                "num_events_applied": len(events) if events else 0
+                "num_events_applied": len(events) if events else 0,
+                "model_status": "ml_model" if pipe else "synthetic_fallback"
             },
             "ohlc_data": ohlc_data,
             "predicted_log_returns": log_returns.tolist(),

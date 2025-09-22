@@ -1,7 +1,20 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { PriceSimulationEngine, SimulationState, MarketConditions, CompanyEvent, CandlestickData } from '../engine/PriceSimulationEngine';
+import { simulationAPI, SimulationRequest, CompanyMeta, SimulationControls, OHLCData } from '../services/simulationAPI';
+
+export interface SessionCompanyProfile {
+  companyName?: string;
+  ticker?: string;
+  size: string;
+  sector: string;
+}
 
 interface SimulationContextType {
+  // Session data
+  sessionProfile: SessionCompanyProfile | null;
+  isSessionActive: boolean;
+  
+  // Legacy engine (keeping for compatibility)
   engine: PriceSimulationEngine | null;
   currentPrice: number;
   priceChange: { absolute: number; percentage: number };
@@ -10,8 +23,18 @@ interface SimulationContextType {
   currentDay: number;
   simulationDuration: { days: number; hours: number; minutes: number; startDate: string };
   
+  // Backend simulation
+  simulationResults: OHLCData[] | null;
+  isSimulating: boolean;
+  simulationError: string | null;
+  
   // Actions
-  initializeSimulation: (profile: { companyName?: string; ticker?: string; size: string; sector: string }) => void;
+  initializeSession: (profile: SessionCompanyProfile) => void;
+  clearSession: () => void;
+  runBackendSimulation: (controls: Partial<SimulationControls>, horizon: number, mode: 'hold' | 'trajectory') => Promise<void>;
+  
+  // Legacy actions (keeping for compatibility)
+  initializeSimulation: (profile: SessionCompanyProfile) => void;
   updateMarketConditions: (conditions: Partial<MarketConditions>) => void;
   triggerEvent: (event: CompanyEvent) => void;
   simulateNextDay: () => void;
@@ -27,8 +50,18 @@ interface SimulationProviderProps {
 }
 
 export function SimulationProvider({ children }: SimulationProviderProps) {
+  // Session state
+  const [sessionProfile, setSessionProfile] = useState<SessionCompanyProfile | null>(null);
+  const [isSessionActive, setIsSessionActive] = useState(false);
+  
+  // Backend simulation state
+  const [simulationResults, setSimulationResults] = useState<OHLCData[] | null>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simulationError, setSimulationError] = useState<string | null>(null);
+  
+  // Legacy engine state (keeping for compatibility)
   const [engine, setEngine] = useState<PriceSimulationEngine | null>(null);
-  const [currentPrice, setCurrentPrice] = useState(154.80); // default to mid-cap price
+  const [currentPrice, setCurrentPrice] = useState(154.80);
   const [priceChange, setPriceChange] = useState({ absolute: 0, percentage: 0 });
   const [historicalData, setHistoricalData] = useState<CandlestickData[]>([]);
   const [isRunning, setIsRunning] = useState(false);
@@ -48,12 +81,86 @@ export function SimulationProvider({ children }: SimulationProviderProps) {
         return 154.80;
     }
   };
+
+  // Map frontend profile to backend CompanyMeta
+  const mapProfileToCompanyMeta = (profile: SessionCompanyProfile): CompanyMeta => {
+    return {
+      company_name: profile.companyName || `Sample ${profile.sector.toUpperCase()} Corp`,
+      ticker: profile.ticker || 'SAMPLE',
+      sector: profile.sector,
+      market_cap_bucket: profile.size.replace('-', '_') as 'large_cap' | 'mid_cap' | 'small_cap',
+      company_size: profile.size.replace('-', '_') as 'large_cap' | 'mid_cap' | 'small_cap',
+      company_id: profile.ticker || 'SAMPLE001'
+    };
+  };
+
+  // New session management
+  const initializeSession = (profile: SessionCompanyProfile) => {
+    console.log('Initializing simulation session with profile:', profile);
+    setSessionProfile(profile);
+    setIsSessionActive(true);
+    
+    // Also initialize legacy engine for compatibility
+    initializeSimulation(profile);
+  };
+
+  const clearSession = () => {
+    setSessionProfile(null);
+    setIsSessionActive(false);
+    setSimulationResults(null);
+    setSimulationError(null);
+    setIsSimulating(false);
+  };
+
+  // Backend simulation runner
+  const runBackendSimulation = async (
+    controls: Partial<SimulationControls>, 
+    horizon: number, 
+    mode: 'hold' | 'trajectory'
+  ) => {
+    if (!sessionProfile) {
+      setSimulationError('No company profile set. Please set up your company profile first.');
+      return;
+    }
+
+    setIsSimulating(true);
+    setSimulationError(null);
+
+    try {
+      const companyMeta = mapProfileToCompanyMeta(sessionProfile);
+      const startDate = new Date().toISOString().split('T')[0]; // Today's date
+      const lastClose = getBasePriceForSize(sessionProfile.size);
+
+      const request: SimulationRequest = {
+        company_meta: companyMeta,
+        last_close: lastClose,
+        start_date: startDate,
+        horizon: horizon,
+        mode: mode,
+        controls: controls,
+        events: [] // Can be extended later for specific dated events
+      };
+
+      console.log('Running backend simulation with request:', request);
+      const response = await simulationAPI.simulate(request);
+      
+      setSimulationResults(response.ohlc_data);
+      console.log('Backend simulation completed successfully:', response);
+      
+    } catch (error) {
+      console.error('Backend simulation failed:', error);
+      setSimulationError(error instanceof Error ? error.message : 'Simulation failed');
+    } finally {
+      setIsSimulating(false);
+    }
+  };
   
-  const initializeSimulation = (profile: { companyName?: string; ticker?: string; size: string; sector: string }) => {
+  // Legacy simulation methods (keeping for compatibility)
+  const initializeSimulation = (profile: SessionCompanyProfile) => {
     const basePrice = getBasePriceForSize(profile.size);
     
     const newEngine = new PriceSimulationEngine({
-      companyProfile: profile,
+      companyProfile: { ...profile, companySizeValue: basePrice },
       basePrice: basePrice
     });
     
@@ -139,7 +246,7 @@ export function SimulationProvider({ children }: SimulationProviderProps) {
     setSimulationDuration(engine.getSimulationDuration());
     setIsRunning(false);
   };
-  
+
   // Auto-simulation effect (simulate every few seconds when running)
   useEffect(() => {
     if (!isRunning || !engine) return;
@@ -169,6 +276,19 @@ export function SimulationProvider({ children }: SimulationProviderProps) {
   }, [engine]);
   
   const value: SimulationContextType = {
+    // Session data
+    sessionProfile,
+    isSessionActive,
+    
+    // Backend simulation
+    simulationResults,
+    isSimulating,
+    simulationError,
+    runBackendSimulation,
+    initializeSession,
+    clearSession,
+    
+    // Legacy engine data
     engine,
     currentPrice,
     priceChange,
@@ -176,6 +296,8 @@ export function SimulationProvider({ children }: SimulationProviderProps) {
     isRunning,
     currentDay,
     simulationDuration,
+    
+    // Legacy actions
     initializeSimulation,
     updateMarketConditions,
     triggerEvent,
